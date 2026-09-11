@@ -1,0 +1,23 @@
+version = 1
+
+[[annotations]]
+path = [
+  ".gitignore",
+  "flake.lock",
+  "*.nix",
+  ".github/**",
+  "nix.patches/**",
+  "design/**",
+  "design2/**",
+  "impl_notes/**",
+  "argparse/parse_sketch.md",
+  "loop1_summary.md",
+  "next_ideas.md",
+  "use_summary.md",
+  "site/**",
+  "examples/nvme_test/templates/**",
+  "qemu_test/stubs/README",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Jesper Wendel Devantier"
+SPDX-License-Identifier = "CC0-1.0"
