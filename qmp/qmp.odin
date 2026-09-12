@@ -1,3 +1,4 @@
+// SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier
 // SPDX-License-Identifier: BSD-2-Clause
 //
 // qmp - A synchronous, single-threaded QEMU Management Protocol (QMP) client.
