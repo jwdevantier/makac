@@ -3,11 +3,13 @@
 
 # Introduction
 
-makac (Czech for "hard worker" or "grinder") is an **orchestrator / runner** written in
-[Odin](https://odin-lang.org/). It sits somewhere between a CI system and a test-runner:
+Makac is an **orchestrator / runner** written in [Odin](https://odin-lang.org/).
+It sits somewhere between a CI system and a test-runner:
 you describe *what should happen* — run commands, transfer files, boot machines, gather
 facts — and makac carries it out, against your own machine or against remote hosts, in the
 order you specify.
+Makac comes from the Czech word Makáč (~mah-kaah-ch (as in church)), which is a hard
+worker or maker.
 
 Stylistically, makac is a cross between a GitHub Actions-style CI runner and
 Ansible-esque *declarative* actions. The difference is the foundation: instead of YAML,
