@@ -5,13 +5,14 @@ name: Publish site
 on:
   push:
     branches: [main]
-    paths:
-      - 'site/**'
-      - '.github/workflows/site.yml'
   workflow_dispatch:
 
 permissions:
   contents: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
 
 jobs:
   publish:

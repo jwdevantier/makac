@@ -1,0 +1,61 @@
+# SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier
+# SPDX-License-Identifier: CC0-1.0
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: amd64
+            runner: ubuntu-22.04
+          - target: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install clang
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang
+
+      - name: Download Odin dev-2026-06
+        run: |
+          curl -fsSL -o odin.tar.gz "https://github.com/odin-lang/Odin/releases/download/dev-2026-06/odin-linux-${{ matrix.target }}-dev-2026-06.tar.gz"
+          tar -xzf odin.tar.gz -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/odin" >> "$GITHUB_PATH"
+
+      - name: Build makac
+        run: odin build . -out:makac
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: makac-linux-${{ matrix.target }}
+          path: makac
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/makac
+          generate_release_notes: true
