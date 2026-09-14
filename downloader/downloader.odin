@@ -5,13 +5,6 @@
 /// SHA256 checksum, caches the file under `<cacheDir>/<sha256(url)>`, and
 /// returns the on-disk path.
 ///
-/// Derived from the Go `qqmgr` downloader, with the cache keying adapted for
-/// makac (see the task11 card): entries are keyed by the SHA256 of the *URL*
-/// (not the content), so a URL can be fetched with or without a checksum.
-/// When a checksum *is* given, a cached entry that fails verification is
-/// dropped and re-downloaded — a verified expectation never receives bytes
-/// that fail it.
-///
 /// The package never implements HTTP or hashing itself:
 ///   - Downloads shell out to the `curl` CLI (assumed on PATH, like `git` and
 ///     `tar` — see `curl_cli_download`). The `vendor:curl` binding links
@@ -42,12 +35,12 @@ import "core:strings"
 
 /// Error codes returned by the package. `.None` means success.
 Error :: enum {
-	None,              ///< Success.
-	Bad_Arguments,     ///< Called with arguments that cannot be used (e.g. empty URL).
-	Mkdir_Failure,     ///< Failed to create the cache directory.
-	Write_Failure,     ///< Failed to write the downloaded temp file.
+	None, ///< Success.
+	Bad_Arguments, ///< Called with arguments that cannot be used (e.g. empty URL).
+	Mkdir_Failure, ///< Failed to create the cache directory.
+	Write_Failure, ///< Failed to write the downloaded temp file.
 	Checksum_Mismatch, ///< Downloaded bytes did not hash to the expected SHA256.
-	Download_Failure,  ///< The download itself failed (curl, network, HTTP status, ...).
+	Download_Failure, ///< The download itself failed (curl, network, HTTP status, ...).
 }
 
 /// error_string renders an Error code for user-facing messages.
@@ -81,10 +74,10 @@ error_string :: proc(err: Error) -> string {
 /// A Downloader is safe to reuse across calls; it owns no network state of its
 /// own. (Concurrent downloads are out of scope for now.)
 Downloader :: struct {
-	cacheDir: string,      ///< Cache directory shared across all fetched files.
+	cacheDir:      string, ///< Cache directory shared across all fetched files.
 	download_impl: download_fn, ///< Transfer seam; defaults to `curl_cli_download` and can be
-	                           ///< swapped for a stub in tests (see the `ssh` package's
-	                           ///< `SSH_BIN` convention) so cache/hash logic runs with no network.
+	///< swapped for a stub in tests (see the `ssh` package's
+	///< `SSH_BIN` convention) so cache/hash logic runs with no network.
 }
 
 // ---------------------------------------------------------------------------
@@ -127,8 +120,7 @@ url_cache_key :: proc(url: string, allocator: runtime.Allocator = context.alloca
 /// GetCachedPath returns the path where the file fetched from `url` is cached,
 /// namely `<cacheDir>/<sha256hex(url)>`.
 ///
-/// The returned string is owned by the caller (it allocates via `core:os`) and
-/// must be freed with `delete(path, allocator)`.
+/// The returned string is owned by the caller, free with `delete(path, allocator)`.
 GetCachedPath :: proc(
 	self: ^Downloader,
 	url: string,
@@ -296,7 +288,12 @@ hash_file :: proc(
 	digest: []byte,
 	err: io.Error,
 ) {
-	raw, rerr := hash.hash_file_by_name(hash.Algorithm.SHA256, filename, true, context.temp_allocator)
+	raw, rerr := hash.hash_file_by_name(
+		hash.Algorithm.SHA256,
+		filename,
+		true,
+		context.temp_allocator,
+	)
 	if rerr != nil {
 		return nil, rerr
 	}
@@ -330,7 +327,7 @@ file_matches_sha256 :: proc(path, expected: string) -> bool {
 ///
 /// `data` is the received payload (allocated with `allocator`).
 byte_sink :: struct {
-	data:      []byte,            ///< Received bytes.
+	data:      []byte, ///< Received bytes.
 	allocator: runtime.Allocator, ///< Allocator used for `data`.
 }
 
@@ -362,7 +359,16 @@ download_fn :: proc(url: string, sink: ^byte_sink, allocator: runtime.Allocator)
 /// options (so a URL can never be read as a flag).
 curl_cli_download :: proc(url: string, sink: ^byte_sink, allocator: runtime.Allocator) -> Error {
 	args := []string {
-		"curl", "-fsSL", "--proto", "=http,https,file", "--proto-redir", "=http,https", "-o", "-", "--", url,
+		"curl",
+		"-fsSL",
+		"--proto",
+		"=http,https,file",
+		"--proto-redir",
+		"=http,https",
+		"-o",
+		"-",
+		"--",
+		url,
 	}
 	stdout, stderr, code, run_err := run_capture(args, sink.allocator, context.temp_allocator)
 	defer delete(stdout, sink.allocator)
@@ -373,7 +379,12 @@ curl_cli_download :: proc(url: string, sink: ^byte_sink, allocator: runtime.Allo
 		return .Download_Failure
 	}
 	if code != 0 {
-		fmt.eprintf("makac: download of '%s' failed: curl exited %d: %s\n", url, code, string(stderr))
+		fmt.eprintf(
+			"makac: download of '%s' failed: curl exited %d: %s\n",
+			url,
+			code,
+			string(stderr),
+		)
 		return .Download_Failure
 	}
 	// Hand the body buffer to the sink: it was allocated with sink.allocator
