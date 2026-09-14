@@ -1945,8 +1945,9 @@ _fake_qmp_stop :: proc(srv: ^Fake_QMP) {
 // makac.qmp_open client objects over a fake in-process QMP server: connect +
 // handshake, send (decoded replies, QMP errors as data, multi-command order,
 // arguments marshaling, transport timeout raises), the event-buffer discipline
-// (poll returns only freshly drained events which stay buffered; consume drops
-// the n oldest and raises on over-consumption), lifecycle and validation.
+// (poll reports whether it drained anything, drained events stay buffered,
+// events(n) reads the first n buffered; consume drops the n oldest and raises
+// on over-consumption), lifecycle and validation.
 @(test)
 test_qmp_binding :: proc(t: ^T) {
 	dir, derr := os.make_directory_temp("", "makac_vm_qmp_*", context.allocator)
@@ -1969,9 +1970,13 @@ test_qmp_binding :: proc(t: ^T) {
 		assert(res[1]["return"].status == "running")
 		assert(res[1]["return"].running == true)
 
-		-- the events drained DURING that send are buffered but not returned
+		-- the events drained DURING that send are buffered; poll reports
+		-- nothing new, events() reads what the send buffered
 		local fresh = q:poll()
-		assert(#fresh == 0, "poll returns only newly drained events")
+		assert(fresh == false, "poll reports only freshly drained events")
+		local sent_evs = q:events()
+		assert(#sent_evs == 2, #sent_evs)
+		assert(sent_evs[1].name == "RTC_CHANGE" and sent_evs[2].name == "SPICE_INITIALIZED")
 
 		-- a QMP error reply is data, not a raised error
 		local bad = q:send({ { execute = "bad-cmd" } })
@@ -1992,12 +1997,23 @@ test_qmp_binding :: proc(t: ^T) {
 
 		-- poll: drain events arriving AFTER the reply; they stay buffered
 		q:send({ { execute = "emit-later" } })
-		local evs = q:poll({ timeout_s = 0.4 })
+		assert(q:poll({ timeout_s = 0.4 }) == true, "poll reports drained events")
+		local evs = q:events()
 		assert(#evs == 2, #evs)
 		assert(evs[1].name == "RESET" and evs[1].data.guest == true)
 		assert(evs[1].timestamp.seconds == 3) -- integer, not float
 		assert(evs[2].name == "SHUTDOWN")
+
+		-- events(n): reads the first n only, buffer unchanged
+		local first = q:events(1)
+		assert(#first == 1 and first[1].name == "RESET")
+		assert(#q:events() == 2, "events(n) does not consume")
+		assert(#q:events(0) == 0)
+		local rok, rerr = pcall(function() q:events(3) end)
+		assert(not rok and tostring(rerr):find("cannot read"), tostring(rerr))
+
 		q:consume(2)
+		assert(#q:events() == 0)
 		local ook, oerr = pcall(function() q:consume(1) end)
 		assert(not ook and tostring(oerr):find("cannot consume"), tostring(oerr))
 		q:consume(0) -- no-op

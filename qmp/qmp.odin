@@ -4,8 +4,7 @@
 // qmp - A synchronous, single-threaded QEMU Management Protocol (QMP) client.
 //
 // This package talks to a QEMU instance over a Unix domain socket using the
-// line-oriented JSON framing of QMP. Unlike the reference Go client, which
-// drives the protocol from a background goroutine, this design runs entirely on
+// line-oriented JSON framing of QMP. Communication runs entirely on
 // the calling thread. Every command and every poll drains the socket with a
 // deadline, so a hung QEMU can never block the caller forever.
 //
@@ -18,19 +17,20 @@
 //     command's JSON reply arrives or the deadline is hit. Events seen while
 //     waiting are buffered.
 //   * `poll` reads whatever is currently available (bounded by a timeout),
-//     appends any events to the queue, and returns (copies of) the events it
-//     drained — which STAY buffered. A poll timeout is NOT an error: it just
-//     returns control to the caller.
+//     appending any events to the queue, and reports whether it drained any.
+//     A poll timeout is NOT an error: it just returns control to the caller.
+//   * The buffered events are read straight from the client: `c.events[:]`
+//     is the queue, oldest first. There is no copy and no separate accessor.
 //   * `consume` discards the n oldest buffered events — the ones the caller
-//     has finished treating (their count came from `poll`).
-//   * `events` returns a copy of the buffered events AND clears the queue, so
-//     it is the single source of truth for events raised between commands.
+//     has finished treating.
 //
 // Memory model
 // ------------
-// All strings returned by `send`/`events` are owned by the client and freed on
-// the next mutating call (`send`/`events`/`close`). Do not retain them across
-// those calls, or clone what you need first.
+// The buffered events (`c.events[:]`) and the strings they carry are owned by
+// the client and freed when they are consumed (or the buffer is cleared by
+// `send`/`close`). Do not retain them across those calls, or clone what you
+// need first. The same holds for the strings in a `Reply`: they are freed on
+// the next `send`/`close`.
 
 package qmp
 
@@ -38,7 +38,6 @@ import "base:runtime"
 import "core:encoding/json"
 import "core:fmt"
 import "core:mem"
-import "core:os"
 import "core:strings"
 import "core:sys/posix"
 import "core:time"
@@ -50,12 +49,12 @@ import "core:time"
 /// Error codes that can be returned by the QMP client. `.None` means success.
 Error :: enum {
 	None,
-	Connect_Failed,   ///< Could not establish / negotiate the connection.
-	Not_Connected,    ///< Operation attempted on a closed / unconnected client.
-	Timeout,          ///< A command deadline elapsed (VM unresponsive). NOT used for poll.
-	Protocol_Error,   ///< QEMU sent something that was not valid QMP JSON.
-	Connection_Lost,  ///< The peer closed or reset the connection mid-operation.
-	Write_Failed,     ///< A socket write failed.
+	Connect_Failed, ///< Could not establish / negotiate the connection.
+	Not_Connected, ///< Operation attempted on a closed / unconnected client.
+	Timeout, ///< A command deadline elapsed (VM unresponsive). NOT used for poll.
+	Protocol_Error, ///< QEMU sent something that was not valid QMP JSON.
+	Connection_Lost, ///< The peer closed or reset the connection mid-operation.
+	Write_Failed, ///< A socket write failed.
 }
 
 /// Structured details about a command rejected by QEMU (an `{"error":...}` reply).
@@ -77,9 +76,9 @@ Event :: struct {
 /// The result of a `send` command. Either `ok` and `return_json` are set, or
 /// `ok == false` and `err` describes the QEMU-level rejection.
 Reply :: struct {
-	ok:          bool,     ///< True on success (return_json set), false on QEMU error (err set).
-	complete:    bool,     ///< True once ANY reply (return or error) has been received.
-	return_json: string,   ///< Raw JSON of the `"return"` payload (set when ok).
+	ok:          bool, ///< True on success (return_json set), false on QEMU error (err set).
+	complete:    bool, ///< True once ANY reply (return or error) has been received.
+	return_json: string, ///< Raw JSON of the `"return"` payload (set when ok).
 	err:         QMP_Error, ///< QEMU error class/desc (set when !ok).
 }
 
@@ -96,16 +95,16 @@ READ_BUF_CAP :: 256 * 1024
 
 /// Handle to one QMP connection. Single-threaded: do not share across threads.
 Client :: struct {
-	conn:      posix.FD,          ///< Underlying socket fd (invalid when !connected).
-	transport: Transport,         ///< How the fd is obtained / released.
-	connected: bool,
+	conn:       posix.FD, ///< Underlying socket fd (invalid when !connected).
+	transport:  Transport, ///< How the fd is obtained / released.
+	connected:  bool,
 	/// Circular read buffer: bytes in [rstart, rstart+rlen) are unconsumed.
-	rbuf:      []u8,
-	rstart:    int,
-	rlen:      int,
-	events:    [dynamic]Event,    ///< Buffered events (send + poll).
-	allocator: runtime.Allocator, ///< Owns all client-managed memory.
-	logger:    Logger,            ///< Optional; nil = silent.
+	rbuf:       []u8,
+	rstart:     int,
+	rlen:       int,
+	events:     [dynamic]Event, ///< Buffered events (send + poll).
+	allocator:  runtime.Allocator, ///< Owns all client-managed memory.
+	logger:     Logger, ///< Optional; nil = silent.
 	/// Storage backing the most recent reply; freed on the next send/close so a
 	/// `Reply` never dangles while the caller inspects it.
 	last_reply: Reply,
@@ -195,7 +194,10 @@ _push_event :: proc(c: ^Client, name, raw: string) {
 /// Returns .None when readable, .Timeout when the deadline elapsed, or another
 /// error if the connection broke / poll itself failed.
 _wait_readable :: proc(c: ^Client, timeout_ms: i32) -> Error {
-	pfd := posix.pollfd{fd = c.conn, events = {.IN}}
+	pfd := posix.pollfd {
+		fd     = c.conn,
+		events = {.IN},
+	}
 	ms := i32(timeout_ms < 0 ? 0 : timeout_ms)
 	n := posix.poll(&pfd, 1, ms)
 	if n < 0 {
@@ -230,7 +232,10 @@ _write_all :: proc(c: ^Client, b: []u8, deadline: time.Time) -> Error {
 			if remaining_ms <= 0 {
 				return .Timeout
 			}
-			pfd := posix.pollfd{fd = c.conn, events = {.OUT}}
+			pfd := posix.pollfd {
+				fd     = c.conn,
+				events = {.OUT},
+			}
 			if posix.poll(&pfd, 1, remaining_ms) < 0 {
 				return .Write_Failed
 			}
@@ -260,7 +265,7 @@ _drain :: proc(c: ^Client, deadline: time.Time, reply: ^Reply, want_reply: bool)
 			if n < 0 && (posix.errno() == .EAGAIN || posix.errno() == .EWOULDBLOCK) {
 				break
 			}
-			if n <= 0 { // error (n<0, non-EAGAIN), or orderly peer shutdown (n==0)
+			if n <= 0 { 	// error (n<0, non-EAGAIN), or orderly peer shutdown (n==0)
 				c.connected = false
 				return .Connection_Lost
 			}
@@ -359,7 +364,7 @@ _next_line :: proc(c: ^Client) -> (line: string, ok: bool) {
 	if idx < 0 {
 		return "", false
 	}
-	raw := string(c.rbuf[c.rstart : c.rstart + idx])
+	raw := string(c.rbuf[c.rstart:c.rstart + idx])
 	line = strings.trim_space(raw)
 	// Consume the line plus its newline.
 	c.rstart += idx + 1
@@ -451,10 +456,15 @@ _ms_until :: proc(deadline: time.Time) -> i32 {
 /// Connect over a `transport`, perform the greeting + `qmp_capabilities`
 /// handshake, and return a ready client. `timeout` bounds the whole
 /// connect+handshake. `allocator` owns all client memory.
-connect_transport :: proc(t:         Transport,
-			  timeout:   time.Duration = 5 * time.Second,
-			  allocator: runtime.Allocator = context.allocator,
-			  logger:    Logger = nil) -> (client: Client, err: Error) {
+connect_transport :: proc(
+	t: Transport,
+	timeout: time.Duration = 5 * time.Second,
+	allocator: runtime.Allocator = context.allocator,
+	logger: Logger = nil,
+) -> (
+	client: Client,
+	err: Error,
+) {
 
 	c: Client
 	c.allocator = allocator
@@ -508,10 +518,15 @@ connect_transport :: proc(t:         Transport,
 
 /// Connect to a QEMU QMP Unix socket at `socket_path`. Convenience wrapper
 /// around `connect_transport` for the common Unix-socket case.
-connect :: proc(socket_path: string,
-		timeout:   time.Duration = 5 * time.Second,
-		allocator: runtime.Allocator = context.allocator,
-		logger:    Logger = nil) -> (Client, Error) {
+connect :: proc(
+	socket_path: string,
+	timeout: time.Duration = 5 * time.Second,
+	allocator: runtime.Allocator = context.allocator,
+	logger: Logger = nil,
+) -> (
+	Client,
+	Error,
+) {
 	t: Transport
 	if !unix_transport(&t, socket_path) {
 		return {}, .Connect_Failed
@@ -521,10 +536,15 @@ connect :: proc(socket_path: string,
 
 /// Connect to a QEMU QMP TCP endpoint ("host:port"). Convenience wrapper
 /// around `connect_transport` for the TCP case.
-connect_tcp :: proc(endpoint: string,
-		    timeout:   time.Duration = 5 * time.Second,
-		    allocator: runtime.Allocator = context.allocator,
-		    logger:    Logger = nil) -> (Client, Error) {
+connect_tcp :: proc(
+	endpoint: string,
+	timeout: time.Duration = 5 * time.Second,
+	allocator: runtime.Allocator = context.allocator,
+	logger: Logger = nil,
+) -> (
+	Client,
+	Error,
+) {
 	t: Transport
 	if !tcp_transport(&t, endpoint) {
 		return {}, .Connect_Failed
@@ -573,7 +593,14 @@ connected :: proc(c: ^Client) -> bool {
 /// arrive while waiting are buffered and can be retrieved with `events`.
 ///
 /// A `timeout` elapsed means the VM is unresponsive -> `.Timeout` (a big error).
-send :: proc(c: ^Client, command: string, timeout: time.Duration = 5 * time.Second) -> (reply: Reply, err: Error) {
+send :: proc(
+	c: ^Client,
+	command: string,
+	timeout: time.Duration = 5 * time.Second,
+) -> (
+	reply: Reply,
+	err: Error,
+) {
 	if !c.connected {
 		return {}, .Not_Connected
 	}
@@ -615,16 +642,12 @@ send :: proc(c: ^Client, command: string, timeout: time.Duration = 5 * time.Seco
 
 /// Read any QMP messages currently available, buffering events. Keeps going
 /// until there is nothing more to read OR `timeout` elapses; a poll timeout is
-/// NOT an error: it returns `.None`. Returns copies of the events drained
-/// DURING THIS CALL — those events stay buffered (discard them with `consume`
-/// once treated). The returned slice and its strings are cloned into
-/// `out_allocator` and belong to the caller; do not pass the temp allocator —
-/// during the call that IS the per-call scratch arena, destroyed on return.
-poll :: proc(c: ^Client,
-		timeout: time.Duration = 0,
-		out_allocator: runtime.Allocator = context.allocator) -> (drained: []Event, err: Error) {
+/// NOT an error: it returns `.None`. Returns whether any events were drained
+/// during this call — they are appended to the buffer, so read them from
+/// `c.events[:]` and discard them with `consume` once treated.
+poll :: proc(c: ^Client, timeout: time.Duration = 0) -> (drained: bool, err: Error) {
 	if !c.connected {
-		return {}, .Not_Connected
+		return false, .Not_Connected
 	}
 	start := len(c.events)
 	// per-call scratch (see _scratch_swap); restored on return
@@ -635,15 +658,7 @@ poll :: proc(c: ^Client,
 	discard := Reply{}
 	derr := _drain(c, deadline, &discard, false)
 	err = .None if derr == .Timeout else derr
-	if n := len(c.events) - start; n > 0 {
-		out := make([]Event, n, out_allocator)
-		for i in 0 ..< n {
-			ev := c.events[start + i]
-			out[i].name = strings.clone(ev.name, out_allocator)
-			out[i].raw = strings.clone(ev.raw, out_allocator)
-		}
-		drained = out
-	}
+	drained = len(c.events) > start
 	return
 }
 
@@ -662,17 +677,4 @@ consume :: proc(c: ^Client, n: int) {
 	}
 	copy(c.events[:], c.events[n:])
 	resize(&c.events, len(c.events) - n)
-}
-
-/// Return a copy of all buffered events and clear the buffer. The returned
-/// slice and its strings are cloned into `out_allocator` and belong to the
-/// caller.
-events :: proc(c: ^Client, out_allocator: runtime.Allocator = context.allocator) -> []Event {
-	out := make([]Event, len(c.events), out_allocator)
-	for ev, i in c.events {
-		out[i].name = strings.clone(ev.name, out_allocator)
-		out[i].raw = strings.clone(ev.raw, out_allocator)
-	}
-	_clear_events(c)
-	return out
 }

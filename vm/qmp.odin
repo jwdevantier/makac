@@ -29,11 +29,13 @@ import "../qmp"
 //       A QMP error reply is DATA (a result entry); transport failures
 //       (connect lost, timeout, ...) raise. Send clears the event buffer
 //       first: a new command retires prior events (qmp.md).
-//   qmp:poll({ timeout_s = }?) -> events
-//       Drains the socket (timeout is not an error; default 0: no wait) and
-//       returns the events drained DURING THIS CALL as
+//   qmp:poll({ timeout_s = }?) -> bool
+//       Drains the socket (timeout is not an error; default 0: no wait),
+//       appends any events to the buffer, and returns whether any arrived.
+//   qmp:events(n?) -> events
+//       Returns the first n buffered events (all of them when n is omitted) as
 //         { name = <string>, data = <table>?, timestamp = <table>? }
-//       Drained events STAY buffered; discard them once treated:
+//       They STAY buffered; discard them once treated:
 //   qmp:consume(n)   -- drops the n oldest buffered events; raises when n
 //                       exceeds the buffered count
 //   qmp:close()      -- idempotent; __gc is the backstop for leaked clients
@@ -77,6 +79,7 @@ _qmp_index :: proc "c" (L: ^lua.State) -> c.int {
 	switch runtime.cstring_to_string(lua.tostring(L, 2)) {
 	case "send":    lua.pushcclosure(L, _qmp_send, 0)
 	case "poll":    lua.pushcclosure(L, _qmp_poll, 0)
+	case "events":  lua.pushcclosure(L, _qmp_events, 0)
 	case "consume": lua.pushcclosure(L, _qmp_consume, 0)
 	case "close":   lua.pushcclosure(L, _qmp_close, 0)
 	case:           lua.pushnil(L)
@@ -314,7 +317,7 @@ _qmp_send :: proc "c" (L: ^lua.State) -> c.int {
 	return 1
 }
 
-// qmp:poll(opts?) -> events array (drained during this call; stay buffered)
+// qmp:poll(opts?) -> bool (true when events were drained into the buffer)
 @(private = "file")
 _qmp_poll :: proc "c" (L: ^lua.State) -> c.int {
 	context = runtime.default_context()
@@ -322,19 +325,8 @@ _qmp_poll :: proc "c" (L: ^lua.State) -> c.int {
 	if self == nil {return 0}
 	timeout := _timeout_opt(L, 2, 0)
 
-	drained, perr := qmp.poll(&self.client, timeout, context.allocator)
-	// The drained events are ours to free (cloned into context.allocator).
-	// NB: explicit cleanup on every path — a raise longjmps out of the C
-	// stack frame and Odin defers would never run.
-	_free_drained :: proc(drained: []qmp.Event, allocator: runtime.Allocator) {
-		for ev in drained {
-			delete(ev.name, allocator)
-			delete(ev.raw, allocator)
-		}
-		delete(drained)
-	}
+	drained, perr := qmp.poll(&self.client, timeout)
 	if perr != .None {
-		_free_drained(drained, context.allocator)
 		return c.int(
 			lua.L_error(
 				L,
@@ -344,10 +336,40 @@ _qmp_poll :: proc "c" (L: ^lua.State) -> c.int {
 			),
 		)
 	}
-	defer _free_drained(drained, context.allocator)
+	lua.pushboolean(L, b32(drained))
+	return 1
+}
 
-	lua.createtable(L, c.int(len(drained)), 0)
-	for ev, i in drained {
+// qmp:events(n?) -> events array (the first n buffered events; all when n is
+// omitted). The events stay buffered — discard them with consume once treated.
+@(private = "file")
+_qmp_events :: proc "c" (L: ^lua.State) -> c.int {
+	context = runtime.default_context()
+	self := _check_qmp(L, "events")
+	if self == nil {return 0}
+
+	buffered := len(self.client.events)
+	n := buffered
+	if !lua.isnoneornil(L, 2) {
+		n = int(lua.L_checkinteger(L, 2))
+		if n < 0 {
+			return c.int(lua.L_error(L, "makac.qmp: events: n must not be negative"))
+		}
+		if n > buffered {
+			return c.int(
+				lua.L_error(
+					L,
+					"makac.qmp: events: cannot read %d events, only %d buffered",
+					n,
+					buffered,
+				),
+			)
+		}
+	}
+
+	lua.createtable(L, c.int(n), 0)
+	for i in 0 ..< n {
+		ev := self.client.events[i]
 		lua.createtable(L, 0, 3) // ... events entry
 		_push_lstring(L, ev.name)
 		lua.setfield(L, -2, "name")
