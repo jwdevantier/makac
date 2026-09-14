@@ -11,7 +11,7 @@ import lua "vendor:lua/5.4"
 // manual-acceptance only (it needs real QEMU/KVM and a guest image), but it
 // must never silently bit-rot: it has to at least PARSE. Load-only — never
 // executed — via luaL_loadbuffer, so syntax/reportable compile errors fail
-// here (task: design2 wrap-up).
+// here (task: design wrap-up).
 
 @(test)
 test_example_nvme_test_parses :: proc(t: ^testing.T) {

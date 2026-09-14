@@ -14,7 +14,7 @@ import "core:time"
 
 import lua "vendor:lua/5.4"
 
-// makac.fs (design2/stdlib.md) — the home of ALL flat filesystem
+// makac.fs (design/stdlib.md) — the home of ALL flat filesystem
 // primitives. This file holds the shared submodule plumbing and the
 // directory-level entries; later tasks add paths, Dir handles, regular
 // files/temp entries and hashing as fields of the same single `makac.fs`

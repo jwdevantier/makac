@@ -8,7 +8,7 @@ import "core:sys/posix"
 
 import lua "vendor:lua/5.4"
 
-// Process primitives (design2/stdlib.md, "Processes (flat — orchestrator
+// Process primitives (design/stdlib.md, "Processes (flat — orchestrator
 // vocabulary)") — flat under makac.*, not a submodule. `pid_alive` lives
 // here; `spawn` joins this file in its own task. (`makac.exec`, the
 // captured-stdout sibling, lives in vm/exec.odin.)

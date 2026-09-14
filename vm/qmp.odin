@@ -13,7 +13,7 @@ import lua "vendor:lua/5.4"
 
 import "../qmp"
 
-// QMP client primitive (design2/qmp.md, design2/feasibility.md), an
+// QMP client primitive (design/qmp.md), an
 // object-style Lua API over the ./qmp package, one persistent connection
 // per client object:
 //

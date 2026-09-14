@@ -6,7 +6,7 @@ import "core:os"
 import "core:strings"
 import "core:testing"
 
-// makac.fs — directory handles (Dir) (design2/stdlib.md). Fixture tree per
+// makac.fs — directory handles (Dir) (design/stdlib.md). Fixture tree per
 // test (built Odin-side, asserted Lua-side through the VM):
 //   <root>/a/           dir
 //   <root>/a/b/         dir      (empty)

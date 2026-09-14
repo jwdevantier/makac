@@ -9,7 +9,7 @@ import "core:testing"
 
 import lua "vendor:lua/5.4"
 
-// makac.env (design2/stdlib.md): all() enumerates the process environment,
+// makac.env (design/stdlib.md): all() enumerates the process environment,
 // version() returns the build-time constants, makac_path() is the absolute
 // path of the running binary as a `path` value.
 

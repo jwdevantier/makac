@@ -8,7 +8,6 @@ path = [
   ".github/**",
   "nix.patches/**",
   "design/**",
-  "design2/**",
   "impl_notes/**",
   "argparse/parse_sketch.md",
   "loop1_summary.md",

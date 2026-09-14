@@ -11,7 +11,7 @@ import "core:sys/posix"
 
 import lua "vendor:lua/5.4"
 
-// makac.spawn (design2/stdlib.md, "Processes (flat — orchestrator
+// makac.spawn (design/stdlib.md, "Processes (flat — orchestrator
 // vocabulary)" and "Launching long-lived processes (QEMU)"). fork a child
 // whose lifetime nobody manages, for processes that must outlive the run:
 //

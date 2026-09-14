@@ -39,6 +39,6 @@ an NVMe controller while the guest runs, assert its shape, and tear down.
 ## Where the code lives
 
 The package is developed in its own repository (`makac.qemu`; it lived in
-`./extras/makac-qemu/` here before the move). Its detailed design notes live
-in `design2/` in this repository — those are implementer notes; the
-user-facing documentation ships in the makac.qemu repository itself.
+`./extras/makac-qemu/` here before the move). Its detailed design notes
+live in `design/` in the package repository — those are implementer notes;
+the user-facing documentation ships in the makac.qemu repository itself.

@@ -10,7 +10,7 @@ import "core:strings"
 
 import lua "vendor:lua/5.4"
 
-// makac.env (design2/stdlib.md, "makac.env") — the process-environment and
+// makac.env (design/stdlib.md, "makac.env") — the process-environment and
 // makac-identity submodule:
 //
 //   makac.env.all() -> { NAME = value, ... }   -- whole process environment

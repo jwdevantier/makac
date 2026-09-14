@@ -19,7 +19,8 @@ packages:
   - fio
 
 # The guest-side topology the nvme tests rely on is image content
-# (design2/example_nvme_test.md): vfio-pci available, the nvme driver
+# (the makac.qemu package's design/example_nvme_test.md): vfio-pci
+# available, the nvme driver
 # blacklisted so hotplugged devices stay unbound until the test binds them.
 write_files:
   - path: /etc/modules-load.d/vfio.conf

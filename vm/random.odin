@@ -11,7 +11,7 @@ import "core:strings"
 
 import lua "vendor:lua/5.4"
 
-// makac.random_hex (design2/stdlib.md, "Misc (flat)") — the one primitive
+// makac.random_hex (design/stdlib.md, "Misc (flat)") — the one primitive
 // that does not fit under a submodule; Ruby's SecureRandom.hex. Covers
 // images.md's "generate an instance id" without shelling out to uuidgen.
 

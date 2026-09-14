@@ -1,6 +1,7 @@
 -- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier
 -- SPDX-License-Identifier: BSD-2-Clause
--- The snapshot + hotplug NVMe test loop (design2/example_nvme_test.md):
+-- The snapshot + hotplug NVMe test loop (the makac.qemu package's
+-- design/example_nvme_test.md):
 -- boot a VM once, snapshot the booted state into its image, then run a
 -- series of tests that each resume from the snapshot, hotplug an NVMe
 -- device at a known BDF, bind it to vfio-pci in the guest, exercise it,

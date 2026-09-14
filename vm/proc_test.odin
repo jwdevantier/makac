@@ -9,7 +9,7 @@ import "core:testing"
 
 import lua "vendor:lua/5.4"
 
-// makac.pid_alive (design2/stdlib.md, "Processes (flat — orchestrator
+// makac.pid_alive (design/stdlib.md, "Processes (flat — orchestrator
 // vocabulary)") — ONE kill(pid, 0); a boolean answer, never a raise.
 
 // pid_alive is registered FLAT on the makac table (orchestrator vocabulary),

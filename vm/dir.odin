@@ -11,7 +11,7 @@ import "core:strings"
 
 import lua "vendor:lua/5.4"
 
-// makac.fs — directory handles (`Dir`) (design2/stdlib.md, "makac.fs —
+// makac.fs — directory handles (`Dir`) (design/stdlib.md, "makac.fs —
 // directory handles (Dir)"). A Dir is a userdata with metatable
 // "makac.fs.Dir" holding ONE canonical absolute path (resolved at
 // construction) — no fd, nothing to close; the threat model is a local

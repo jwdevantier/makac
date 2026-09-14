@@ -9,7 +9,7 @@ import "core:sys/posix"
 
 import lua "vendor:lua/5.4"
 
-// makac.time — the poll-loop primitives Lua lacks (design2/stdlib.md).
+// makac.time — the poll-loop primitives Lua lacks (design/stdlib.md).
 // One unit everywhere: integer nanoseconds. `now` is CLOCK_MONOTONIC (never
 // wall time) so "deadline = now() + timeout * ns_per_s" arithmetic is safe
 // across NTP jumps; `sleep` is nanosleep with EINTR resume.
@@ -52,7 +52,7 @@ register_time_primitives :: proc(v: ^VM) {
 
 // makac.time.sleep(ns) — suspend for ns nanoseconds; resumes on EINTR.
 // No return values. ns must be a non-negative integer within a sane bound;
-// anything else raises (bad arguments are errors, design2/stdlib.md).
+// anything else raises (bad arguments are errors, design/stdlib.md).
 _makac_time_sleep :: proc "c" (L: ^lua.State) -> c.int {
 	context = runtime.default_context()
 	ns := i64(lua.L_checkinteger(L, 1))

@@ -12,7 +12,7 @@ import "core:c"
 
 import lua "vendor:lua/5.4"
 
-// makac.fs — directories (design2/stdlib.md): mkdir_p and the moved listdir.
+// makac.fs — directories (design/stdlib.md): mkdir_p and the moved listdir.
 
 // makac.fs is a table carrying the two directory primitives; the flat
 // makac.listdir alias still exists (the prelude enumerates packages with it)
@@ -194,7 +194,7 @@ assert(es3 == nil and type(err3) == "string", "file must return nil, err")
 	}
 }
 
-// makac.fs — regular files and temp entries (design2/stdlib.md):
+// makac.fs — regular files and temp entries (design/stdlib.md):
 // read_file / write_file / stat / mktemp_dir / mktemp_file.
 
 // read_file/write_file round-trip: write then read back the same bytes;
@@ -499,7 +499,7 @@ test_fs_mktemp_file :: proc(t: ^testing.T) {
 	}
 }
 
-// makac.fs — hashing (design2/stdlib.md): sha256(path) -> hex | nil, err.
+// makac.fs — hashing (design/stdlib.md): sha256(path) -> hex | nil, err.
 
 // Known vectors (sha256("") and sha256("abc")), the (nil, err) absence
 // convention (a missing file and a directory are both unhashable), and a

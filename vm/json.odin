@@ -10,7 +10,7 @@ import "core:strings"
 
 import lua "vendor:lua/5.4"
 
-// makac.json (design2/stdlib.md) — dumps/loads over the shared Lua↔JSON
+// makac.json (design/stdlib.md) — dumps/loads over the shared Lua↔JSON
 // converters below. Those converters were written for the qmp binding
 // (qmp:send marshals command arguments with exactly these rules); they live
 // here so qmp and json.dumps/json.loads can never drift apart:

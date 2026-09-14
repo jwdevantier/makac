@@ -8,7 +8,7 @@ import "core:testing"
 
 import lua "vendor:lua/5.4"
 
-// makac.random_hex (design2/stdlib.md, "Misc (flat)") — exactly n lowercase
+// makac.random_hex (design/stdlib.md, "Misc (flat)") — exactly n lowercase
 // hex chars from core:crypto's CSPRNG; two calls differ; odd n works.
 
 @(test)

@@ -9,7 +9,7 @@ import "core:testing"
 
 import lua "vendor:lua/5.4"
 
-// makac.spawn (design2/stdlib.md, "Processes (flat)" / "Launching
+// makac.spawn (design/stdlib.md, "Processes (flat)" / "Launching
 // long-lived processes"). Detached fork, stdio to files, WNOHANG status,
 // no :kill, no GC kill. All waits poll status() with tiny makac.time.sleep
 // gaps; children are real but trivial (sh -c), self-reaped by the scripts.

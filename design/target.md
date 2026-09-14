@@ -105,8 +105,7 @@ The host's name is something recognizable such as `host`.
       local vm = res.out.target
 
   `vm` may then be passed to a later step's `target` field (or `with.target`),
-  directing that step at the machine the earlier action stood up. See the VM
-  example in `workflow_example.md`.
+  directing that step at the machine the earlier action stood up.
 
 ## Lifecycle
 

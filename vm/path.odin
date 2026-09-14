@@ -10,7 +10,7 @@ import "core:strings"
 
 import lua "vendor:lua/5.4"
 
-// makac.fs — the `path` type (design2/stdlib.md, "makac.fs — paths"). A
+// makac.fs — the `path` type (design/stdlib.md, "makac.fs — paths"). A
 // userdata with metatable "makac.path" holding ONE cleaned path string;
 // same object discipline as "makac.ssh"/"makac.qmp": no resources to close,
 // trivial __gc (frees raw by stored allocator — see newuserdata struct

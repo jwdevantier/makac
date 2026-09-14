@@ -4,7 +4,7 @@ package vm
 
 import "core:testing"
 
-// makac.json — dumps/loads (design2/stdlib.md). Same converters as qmp:send.
+// makac.json — dumps/loads (design/stdlib.md). Same converters as qmp:send.
 
 // makac.json is a table with the two functions.
 @(test)

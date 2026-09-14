@@ -15,7 +15,7 @@ Taste rules for what gets in:
   (monotonic timing, atomic file write, pid liveness).
 * Convenience wrappers over Lua that works fine (`os.getenv`, `io.open`) stay
   out; the stdlib augments, it does not re-skin.
-* Each entry names at least one caller in `design2/` — nothing speculative.
+* Each entry names at least one caller in the design docs — nothing speculative.
 
 ## Status — what exists, what doesn't
 
@@ -144,7 +144,7 @@ makac.time.ns_per_s
 
 `now` is a monotonic clock (Ruby: `Process.clock_gettime(CLOCK_MONOTONIC)`;
 Odin: `core:time` / `CLOCK_MONOTONIC`), *not* wall time — all "deadline by"
-comparisons in design2 (`wait_ssh`, image stage 5's power-off wait,
+comparisons in the design docs (`wait_ssh`, image stage 5's power-off wait,
 serial-log waits) are `now() + timeout * ns_per_s` arithmetic, never
 `os.time()`. *Callers*: every poll loop in `vm.md` and `images.md`; see
 `launch.md` for the loops in context.

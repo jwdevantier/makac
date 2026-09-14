@@ -4,7 +4,7 @@ package vm
 
 import "core:testing"
 
-// makac.fs — the `path` type (design2/stdlib.md, "makac.fs — paths"):
+// makac.fs — the `path` type (design/stdlib.md, "makac.fs — paths"):
 // constructor cleaning, join/drop-empty, dirname/basename edge cases,
 // method vs free function equivalence, string-or-path coercion on every
 // path-taking fs function.
