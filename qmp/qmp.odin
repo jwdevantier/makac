@@ -563,7 +563,13 @@ close :: proc(c: ^Client) {
 	_close_fd(c)
 	_clear_events(c)
 	_clear_last_reply(c)
-	delete(c.rbuf)
+	// `c.rbuf` is a `[]u8`; `delete` on a slice defaults to
+	// `context.allocator`, which is *not* the allocator the slice was
+	// allocated with at connect time. Pass `c.allocator` explicitly.
+	// (`c.events` is a `[dynamic]Event`, which carries its allocator in
+	// the array header — `delete` reads it from there, so the bare
+	// `delete(c.events)` is already correct.)
+	delete(c.rbuf, c.allocator)
 	delete(c.events)
 }
 
