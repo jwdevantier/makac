@@ -31,13 +31,22 @@
 // cleared by `send`/`close`). Do not retain them across those calls, or clone
 // what you need first. The same holds for the values in a `Reply`: they are
 // freed on the next `send`/`close`.
+//
+// `Client` carries TWO allocators, mirroring the classic permanent/temporary
+// split: `allocator` (permanent — owns everything that outlives a single
+// call: rbuf, events, reply values) and a per-client `scratch_arena`
+// (temporary — a virtual arena for the transients of one call: JSON parses,
+// line framing buffers; derive its allocator with `_scratch_allocator`).
+// Every public entry point (`connect_transport`/`send`/`poll`) takes a temp
+// watermark on the scratch arena and ends it before returning, so a call
+// cleans up after itself and everything it called.
 
 package qmp
 
 import "base:runtime"
 import "core:encoding/json"
 import "core:fmt"
-import "core:mem"
+import "core:mem/virtual"
 import "core:strings"
 import "core:sys/posix"
 import "core:time"
@@ -103,7 +112,18 @@ Client :: struct {
 	rstart:     int,
 	rlen:       int,
 	events:     [dynamic]Event, ///< Buffered events (send + poll).
-	allocator:  runtime.Allocator, ///< Owns all client-managed memory.
+	allocator:  runtime.Allocator, ///< PERMANENT: owns all client-managed memory that outlives a call.
+	/// TEMPORARY: per-call scratch (JSON parses, line framing). Public entry
+	/// points watermark it with `virtual.arena_temp_begin`/`end`, so scratch
+	/// never leaks into the caller's temp arena and is freed wholesale at call
+	/// end. Zero-initialized growing arena; lazily reserves memory on first use.
+	///
+	/// There is deliberately NO stored `scratch_allocator` field: `connect`
+	/// returns `Client` BY VALUE, so any allocator baked with `&scratch_arena`
+	/// at connect time would point at the dying local copy. Derive it at the
+	/// point of use with `_scratch_allocator(c)` instead — `&c.scratch_arena`
+	/// is stable for the lifetime of a live `^Client`.
+	scratch_arena: virtual.Arena,
 	logger:     Logger, ///< Optional; nil = silent.
 	/// Storage backing the most recent reply; freed on the next send/close so a
 	/// `Reply` never dangles while the caller inspects it.
@@ -114,37 +134,11 @@ Client :: struct {
 // Scratch arena
 // ---------------------------------------------------------------------------
 
-/// Fixed size of the per-call scratch arena. Lines parse into this (a 64 KiB
-/// read buffer plus JSON parse garbage per line); the arena is swapped in as
-/// the thread's temp allocator and discarded wholesale at call end.
-SCRATCH_CAP :: 512 * 1024
-
-/// Swap the thread's temp allocator for a private per-call arena. All scratch
-/// work inside connect/send/poll (JSON parses, line framing) goes through
-/// `context.temp_allocator`; routing it to a private arena means a public call
-/// neither leaks scratch into the caller's temp arena NOR frees that arena —
-/// a `free_all(context.temp_allocator)` here would destroy OTHER live temp
-/// allocations the caller may still hold (this bit the fake test server: a
-/// send() wiped the arena its state struct lived in). Swaps nest safely.
+/// Allocator backed by the client's scratch arena. Must be derived at each use
+/// site (see the `scratch_arena` field doc) — never cached in the struct.
 @(private = "file")
-_scratch_swap :: proc(c: ^Client, arena: ^mem.Arena) -> (backing: []u8, prev: runtime.Allocator) {
-	backing = make([]u8, SCRATCH_CAP, c.allocator)
-	if backing == nil {
-		return nil, {} // out of client memory: fall back to the ambient temp arena
-	}
-	mem.arena_init(arena, backing)
-	prev = context.temp_allocator
-	context.temp_allocator = mem.arena_allocator(arena)
-	return
-}
-
-@(private = "file")
-_scratch_restore :: proc(c: ^Client, backing: []u8, prev: runtime.Allocator) {
-	if backing == nil {
-		return
-	}
-	context.temp_allocator = prev
-	delete(backing, c.allocator)
+_scratch_allocator :: proc(c: ^Client) -> runtime.Allocator {
+	return virtual.arena_allocator(&c.scratch_arena)
 }
 
 // ---------------------------------------------------------------------------
@@ -250,8 +244,8 @@ _write_all :: proc(c: ^Client, b: []u8, deadline: time.Time) -> Error {
 /// buffered, replies fill `reply`. Returns when the socket is empty, a reply
 /// arrived, the deadline passed, or an error occurred.
 _drain :: proc(c: ^Client, deadline: time.Time, reply: ^Reply, want_reply: bool) -> Error {
-	buf := make([]u8, 64 * 1024, context.temp_allocator)
-	defer delete(buf, context.temp_allocator)
+	buf := make([]u8, 64 * 1024, _scratch_allocator(c))
+	defer delete(buf, _scratch_allocator(c))
 
 	for {
 		// Wait for readability (poll with 0 timeout = pure non-blocking drain).
@@ -301,8 +295,8 @@ _drain :: proc(c: ^Client, deadline: time.Time, reply: ^Reply, want_reply: bool)
 /// greeting is neither a reply nor an event, so it is handled here directly
 /// rather than going through `_drain`'s dispatch.
 _read_greeting :: proc(c: ^Client, deadline: time.Time) -> Error {
-	buf := make([]u8, 64 * 1024, context.temp_allocator)
-	defer delete(buf, context.temp_allocator)
+	buf := make([]u8, 64 * 1024, _scratch_allocator(c))
+	defer delete(buf, _scratch_allocator(c))
 	for {
 		if line, ok := _next_line(c); ok {
 			_logf(c, "qmp: greeting: %s", line)
@@ -377,7 +371,7 @@ _next_line :: proc(c: ^Client) -> (line: string, ok: bool) {
 
 /// Inspect one JSON line: buffer events, fill `reply` on command replies.
 _dispatch_line :: proc(c: ^Client, line: string, reply: ^Reply) -> Error {
-	value, perr := json.parse_string(line, json.Specification.JSON, false, context.temp_allocator)
+	value, perr := json.parse_string(line, json.Specification.JSON, false, _scratch_allocator(c))
 	if perr != nil {
 		_logf(c, "qmp: ignoring unparseable line: %s", line)
 		return .None
@@ -485,34 +479,38 @@ connect_transport :: proc(
 	c.conn = fd
 	c.connected = true
 
-	// per-call scratch for greeting + handshake (see _scratch_swap);
-	// restored before returning
-	arena: mem.Arena
-	backing, prev := _scratch_swap(&c, &arena)
-	defer _scratch_restore(&c, backing, prev)
+	// Per-call scratch watermark for the greeting + handshake; ended on every
+	// path (success frees the handshake scratch; failure ends it first so
+	// `close` can destroy the arena without an outstanding watermark).
+	temp := virtual.arena_temp_begin(&c.scratch_arena)
 
 	// 1. Read the QMP greeting ({"QMP": ...}). It is neither a reply nor an
 	// event, so we pop its line directly rather than dispatching it.
 	if gerr := _read_greeting(&c, deadline); gerr != .None {
-		close(&c)
-		err = gerr
-		return
+		return _fail_connect(&c, temp, gerr)
 	}
 
 	// 2. Negotiate capabilities.
 	if r, serr := send(&c, `{"execute":"qmp_capabilities"}`, _remaining(deadline)); serr != .None {
-		close(&c)
-		err = serr
-		return
+		return _fail_connect(&c, temp, serr)
 	} else if !r.ok {
-		close(&c)
-		err = .Protocol_Error
-		return
+		return _fail_connect(&c, temp, .Protocol_Error)
 	}
+
+	virtual.arena_temp_end(temp)
 
 	_log(&c, "qmp: connected and negotiated")
 	client = c
 	return c, .None
+}
+
+/// Fail a connect: end the outstanding scratch watermark (so `close` may
+/// destroy the arena), then release all client memory and the transport.
+@(private = "file")
+_fail_connect :: proc(c: ^Client, temp: virtual.Arena_Temp, err: Error) -> (Client, Error) {
+	virtual.arena_temp_end(temp)
+	close(c)
+	return {}, err
 }
 
 /// Connect to a QEMU QMP Unix socket at `socket_path`. Convenience wrapper
@@ -570,6 +568,10 @@ close :: proc(c: ^Client) {
 	// `delete(c.events)` is already correct.)
 	delete(c.rbuf, c.allocator)
 	delete(c.events)
+	// Free the scratch arena's backing. Must be called with no outstanding
+	// scratch watermark (a public entry point's temp is always ended before
+	// close runs; connect_transport's failure paths end it via _fail_connect).
+	virtual.arena_destroy(&c.scratch_arena)
 }
 
 _close_fd :: proc(c: ^Client) {
@@ -612,17 +614,18 @@ send :: proc(
 
 	_clear_events(c)
 	_clear_last_reply(c)
-	// per-call scratch (see _scratch_swap); restored on return
-	arena: mem.Arena
-	backing, prev := _scratch_swap(c, &arena)
-	defer _scratch_restore(c, backing, prev)
+
+	// Per-call scratch watermark: frees everything the send (and the
+	// dispatcher/parser it calls) allocated from the scratch arena.
+	temp := virtual.arena_temp_begin(&c.scratch_arena)
+	defer virtual.arena_temp_end(temp)
 
 	deadline := _deadline(timeout)
 
 	// Write the command line.
 	{
 		n := len(command)
-		buf := make([]u8, n + 1, context.temp_allocator)
+		buf := make([]u8, n + 1, _scratch_allocator(c))
 		copy(buf, command)
 		buf[n] = '\n'
 		if werr := _write_all(c, buf, deadline); werr != .None {
@@ -655,10 +658,12 @@ poll :: proc(c: ^Client, timeout: time.Duration = 0) -> (drained: bool, err: Err
 		return false, .Not_Connected
 	}
 	start := len(c.events)
-	// per-call scratch (see _scratch_swap); restored on return
-	arena: mem.Arena
-	backing, prev := _scratch_swap(c, &arena)
-	defer _scratch_restore(c, backing, prev)
+
+	// Per-call scratch watermark (see send): freed back to the watermark on
+	// return, so a poll never touches the caller's temp arena.
+	temp := virtual.arena_temp_begin(&c.scratch_arena)
+	defer virtual.arena_temp_end(temp)
+
 	deadline := _deadline(timeout)
 	discard := Reply{}
 	derr := _drain(c, deadline, &discard, false)
