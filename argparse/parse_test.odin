@@ -83,32 +83,6 @@ slice_eq :: proc(t: ^T, label: string, expected, actual: []string) -> bool {
 	return ok
 }
 
-// Last Parsed_Command in the result, or `found=false` if there is none.
-last_command :: proc(pr: Parse_Result) -> (pc: Parsed_Command, found: bool) {
-	for e in pr {
-		switch c in e {
-		case Parsed_Command:
-			pc = c
-			found = true
-		case Parsed_Args:
-		}
-	}
-	return
-}
-
-// The single Parsed_Args block, if present.
-find_args :: proc(pr: Parse_Result) -> (a: Parsed_Args, found: bool) {
-	for e in pr {
-		switch x in e {
-		case Parsed_Command:
-		case Parsed_Args:
-			a = x
-			found = true
-		}
-	}
-	return
-}
-
 // Run one case end-to-end (tokenize -> parse -> assert).
 //
 // NOTE: `parse` deletes the result itself on the error path, so we only

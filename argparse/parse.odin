@@ -53,6 +53,35 @@ delete_parse_result :: proc(pr: Parse_Result) {
 	delete(pr)
 }
 
+// Last Parsed_Command in the result, or `found=false` if there is none.
+// Convenience for the common "what command did the user actually invoke" case
+// — the result alternates Parsed_Command / Parsed_Args blocks and the last
+// command is what the caller almost always wants.
+last_command :: proc(pr: Parse_Result) -> (pc: Parsed_Command, found: bool) {
+	for e in pr {
+		switch c in e {
+		case Parsed_Command:
+			pc = c
+			found = true
+		case Parsed_Args:
+		}
+	}
+	return
+}
+
+// The single Parsed_Args block, if present. The parser emits at most one.
+find_args :: proc(pr: Parse_Result) -> (a: Parsed_Args, found: bool) {
+	for e in pr {
+		switch x in e {
+		case Parsed_Command:
+		case Parsed_Args:
+			a = x
+			found = true
+		}
+	}
+	return
+}
+
 parse :: proc(
 	spec: ^Command,
 	tokens: []Token,
