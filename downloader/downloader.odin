@@ -29,6 +29,7 @@ import "core:fmt"
 import "core:io"
 import "core:os"
 import "core:strings"
+import "core:sys/posix"
 
 // ---------------------------------------------------------------------------
 // Errors
@@ -432,35 +433,55 @@ run_capture :: proc(
 	buf: [4096]u8 = ---
 	stdout_done, stderr_done: bool
 	rerr: os.Error
+
+	// Block in posix.poll on both read ends (vm/exec.odin:187-203 does the
+	// same) instead of busy-spinning on os.pipe_has_data — the spin pegs a
+	// core per download. The downloader has no in-process deadline here;
+	// --max-time on the curl invocation is the bound.
+	posix_fd :: proc(f: ^os.File) -> posix.FD {return posix.FD(i32(os.fd(f)))}
+
 	for rerr == nil && (!stdout_done || !stderr_done) {
+		fds: [2]posix.pollfd
+		nfds := 0
+		if !stdout_done {fds[nfds] = {fd = posix_fd(stdout_r), events = {.IN}}; nfds += 1}
+		if !stderr_done {fds[nfds] = {fd = posix_fd(stderr_r), events = {.IN}}; nfds += 1}
+
+		n := posix.poll(&fds[0], auto_cast nfds, -1)
+		if n < 0 {
+			rerr = os.Platform_Error(posix.errno())
+			break
+		}
+
+		wi := 0
 		if !stdout_done {
-			n := 0
-			has_data, herr := os.pipe_has_data(stdout_r)
-			if has_data {
-				n, herr = os.read(stdout_r, buf[:])
-			}
-			switch herr {
-			case nil:
-				append(&stdout_b, ..buf[:n])
-			case .EOF, .Broken_Pipe:
+			if .IN in fds[0].revents {
+				rn, herr := os.read(stdout_r, buf[:])
+				switch herr {
+				case nil:
+					append(&stdout_b, ..buf[:rn])
+				case .EOF, .Broken_Pipe:
+					stdout_done = true
+				case:
+					rerr = herr
+				}
+			} else if fds[0].revents & {.HUP, .ERR, .NVAL} != {} {
 				stdout_done = true
-			case:
-				rerr = herr
 			}
+			wi = 1
 		}
 		if rerr == nil && !stderr_done {
-			n := 0
-			has_data, herr := os.pipe_has_data(stderr_r)
-			if has_data {
-				n, herr = os.read(stderr_r, buf[:])
-			}
-			switch herr {
-			case nil:
-				append(&stderr_b, ..buf[:n])
-			case .EOF, .Broken_Pipe:
+			if .IN in fds[wi].revents {
+				rn, herr := os.read(stderr_r, buf[:])
+				switch herr {
+				case nil:
+					append(&stderr_b, ..buf[:rn])
+				case .EOF, .Broken_Pipe:
+					stderr_done = true
+				case:
+					rerr = herr
+				}
+			} else if fds[wi].revents & {.HUP, .ERR, .NVAL} != {} {
 				stderr_done = true
-			case:
-				rerr = herr
 			}
 		}
 	}
