@@ -3,6 +3,7 @@
 // Test driver for the qmp package against a fake QMP server.
 package main
 
+import "core:encoding/json"
 import "core:fmt"
 import "core:mem"
 import "core:os"
@@ -70,8 +71,10 @@ run :: proc() -> int {
 	reply, serr := qmp.send(&client, `{"execute":"query-status"}`, 5 * time.Second)
 	check(serr == .None, "send query-status: no error")
 	check(reply.ok, "send query-status: reply.ok")
-	check(len(reply.return_json) > 0, "send query-status: has return payload")
-	fmt.printfln("   return_json = %s", reply.return_json)
+	_, has_payload := reply.return_json.(json.Object)
+	check(has_payload, "send query-status: has return payload")
+	js, _ := json.marshal(reply.return_json, {}, context.temp_allocator)
+	fmt.printfln("   return_json = %s", js)
 
 	// events buffered during send are read straight from the client buffer
 	evs := client.events[:]

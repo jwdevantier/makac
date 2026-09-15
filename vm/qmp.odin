@@ -290,19 +290,8 @@ _qmp_send :: proc "c" (L: ^lua.State) -> c.int {
 		// build the result entry
 		lua.createtable(L, 0, 1) // ... results entry
 		if reply.ok {
-			value, perr := json.parse_string(
-				reply.return_json,
-				json.Specification.JSON,
-				true,
-				context.temp_allocator,
-			)
-			if perr == nil {
-				_push_json(L, value)
-			} else {
-				// unreachable in practice (return_json is re-marshaled from a
-				// parse); degrade to the raw string rather than failing
-				_push_lstring(L, reply.return_json)
-			}
+			// already parsed by the qmp package; push it straight through
+			_push_json(L, reply.return_json)
 			lua.setfield(L, -2, "return")
 		} else {
 			lua.createtable(L, 0, 2)
@@ -373,21 +362,15 @@ _qmp_events :: proc "c" (L: ^lua.State) -> c.int {
 		lua.createtable(L, 0, 3) // ... events entry
 		_push_lstring(L, ev.name)
 		lua.setfield(L, -2, "name")
-		if value, perr := json.parse_string(
-			ev.raw,
-			json.Specification.JSON,
-			true,
-			context.temp_allocator,
-		); perr == nil {
-			if obj, is_obj := value.(json.Object); is_obj {
-				if data, has := obj["data"]; has {
-					_push_json(L, data)
-					lua.setfield(L, -2, "data")
-				}
-				if ts, has := obj["timestamp"]; has {
-					_push_json(L, ts)
-					lua.setfield(L, -2, "timestamp")
-				}
+		// already parsed by the qmp package; walk it straight through
+		if obj, is_obj := ev.payload.(json.Object); is_obj {
+			if data, has := obj["data"]; has {
+				_push_json(L, data)
+				lua.setfield(L, -2, "data")
+			}
+			if ts, has := obj["timestamp"]; has {
+				_push_json(L, ts)
+				lua.setfield(L, -2, "timestamp")
 			}
 		}
 		lua.rawseti(L, -2, lua.Integer(i + 1))

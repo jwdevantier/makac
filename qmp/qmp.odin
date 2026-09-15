@@ -26,11 +26,11 @@
 //
 // Memory model
 // ------------
-// The buffered events (`c.events[:]`) and the strings they carry are owned by
-// the client and freed when they are consumed (or the buffer is cleared by
-// `send`/`close`). Do not retain them across those calls, or clone what you
-// need first. The same holds for the strings in a `Reply`: they are freed on
-// the next `send`/`close`.
+// The buffered events (`c.events[:]`) and the JSON values they carry are
+// owned by the client and freed when they are consumed (or the buffer is
+// cleared by `send`/`close`). Do not retain them across those calls, or clone
+// what you need first. The same holds for the values in a `Reply`: they are
+// freed on the next `send`/`close`.
 
 package qmp
 
@@ -69,8 +69,8 @@ QMP_Error :: struct {
 
 /// A single asynchronous event delivered by QEMU (`{"event":...}`).
 Event :: struct {
-	name: string, ///< The event name (e.g. "STOP", "RESET", "SHUTDOWN").
-	raw:  string, ///< The raw JSON line, for callers that want the full payload.
+	name:    string, ///< The event name (e.g. "STOP", "RESET", "SHUTDOWN").
+	payload: json.Value, ///< The full parsed event object (deep-cloned, owned by the client).
 }
 
 /// The result of a `send` command. Either `ok` and `return_json` are set, or
@@ -78,7 +78,7 @@ Event :: struct {
 Reply :: struct {
 	ok:          bool, ///< True on success (return_json set), false on QEMU error (err set).
 	complete:    bool, ///< True once ANY reply (return or error) has been received.
-	return_json: string, ///< Raw JSON of the `"return"` payload (set when ok).
+	return_json: json.Value, ///< Parsed JSON of the `"return"` payload (deep-cloned, set when ok).
 	err:         QMP_Error, ///< QEMU error class/desc (set when !ok).
 }
 
@@ -170,24 +170,24 @@ _logf :: proc(c: ^Client, format: string, args: ..any) {
 _clear_events :: proc(c: ^Client) {
 	for ev in c.events {
 		delete(ev.name, c.allocator)
-		delete(ev.raw, c.allocator)
+		json.destroy_value(ev.payload, c.allocator)
 	}
 	clear(&c.events)
 }
 
 /// Free the storage backing the previous reply.
 _clear_last_reply :: proc(c: ^Client) {
-	delete(c.last_reply.return_json, c.allocator)
+	json.destroy_value(c.last_reply.return_json, c.allocator)
 	delete(c.last_reply.err.class, c.allocator)
 	delete(c.last_reply.err.desc, c.allocator)
 	c.last_reply = {}
 }
 
 /// Append an event to the queue, cloning its strings into client memory.
-_push_event :: proc(c: ^Client, name, raw: string) {
+_push_event :: proc(c: ^Client, name: string, payload: json.Value) {
 	n, _ := strings.clone(name, c.allocator)
-	r, _ := strings.clone(raw, c.allocator)
-	append(&c.events, Event{name = n, raw = r})
+	p := json.clone_value(payload, c.allocator)
+	append(&c.events, Event{name = n, payload = p})
 }
 
 /// Block until the fd is readable, `timeout_ms` elapses, or an error occurs.
@@ -391,17 +391,16 @@ _dispatch_line :: proc(c: ^Client, line: string, reply: ^Reply) -> Error {
 	if ev, has := obj["event"]; has {
 		if name, is_str := ev.(json.String); is_str {
 			_logf(c, "qmp: EVENT %s", name)
-			_push_event(c, name, line)
+			_push_event(c, name, value)
 		}
 		return .None
 	}
 
 	// Command reply: success payload.
 	if ret, has := obj["return"]; has {
-		js, _ := json.marshal(ret, {}, context.temp_allocator)
 		reply.ok = true
 		reply.complete = true
-		reply.return_json = strings.clone(string(js), c.allocator)
+		reply.return_json = json.clone_value(ret, c.allocator)
 		return .None
 	}
 
@@ -679,7 +678,7 @@ consume :: proc(c: ^Client, n: int) {
 	}
 	for i in 0 ..< n {
 		delete(c.events[i].name, c.allocator)
-		delete(c.events[i].raw, c.allocator)
+		json.destroy_value(c.events[i].payload, c.allocator)
 	}
 	copy(c.events[:], c.events[n:])
 	resize(&c.events, len(c.events) - n)
