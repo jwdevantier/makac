@@ -6,11 +6,12 @@
 /// returns the on-disk path.
 ///
 /// The package never implements HTTP or hashing itself:
-///   - Downloads shell out to the `curl` CLI (assumed on PATH, like `git` and
-///     `tar` — see `curl_cli_download`). The `vendor:curl` binding links
-///     libcurl plus mbedtls/z as *system* libraries, which cannot be assumed
-///     to exist (e.g. NixOS, where libcurl lives in the nix store); the CLI
-///     works everywhere.
+///   - Downloads shell out to the `curl` CLI (see `curl_cli_download`). The
+///     `vendor:curl` binding ships a libcurl built against mbedTLS and still
+///     requires libmbedtls/libmbedcrypto/libmbedx509/libz as system libraries
+///     at link- and run-time; the `curl` binary itself bundles those transitive
+///     deps, so shelling out is the minimum-dependency way to make an HTTP
+///     request — one program on PATH, like `git`/`tar`.
 ///   - Checksums/hash keys use the stdlib `core:crypto/hash` + hex packages.
 ///
 /// Example:
@@ -343,14 +344,8 @@ download_fn :: proc(url: string, sink: ^byte_sink, allocator: runtime.Allocator)
 
 /// curl_cli_download is the default `download_fn`: it shells out to the `curl`
 /// CLI (`curl -fsSL --proto =http,https --proto-redir =http,https -o - -- url`)
-/// and captures the body from curl's stdout.
-///
-/// Rationale for the CLI over the `vendor:curl` binding: the binding links
-/// libcurl plus `mbedtls`/`z` as *system* libraries, which simply do not exist
-/// on all build environments (notably NixOS, where libcurl lives in the nix
-/// store and curl's TLS backend is OpenSSL — the link then fails with
-/// "cannot find -lmbedcrypto"). `curl` the program is on PATH everywhere makac
-/// is expected to run, just like `git` and `tar`.
+/// and captures the body from curl's stdout. See the package doc for why we
+/// use the CLI rather than `vendor:curl`.
 ///
 /// Flags: `-f` fail with non-zero exit on HTTP errors, `-sL` silent and
 /// follow redirects, `--proto[`-redir`]` clamped to http(s) — plus `file` on
