@@ -218,22 +218,14 @@ Download :: proc(
 		return "", .Mkdir_Failure
 	}
 
-	// Download into a temporary file first, so the final name only ever
-	// appears once the bytes are present and verified.
-	sink: byte_sink
-	sink.allocator = context.temp_allocator
-	if dl_err := self.download_impl(url, &sink, context.temp_allocator); dl_err != .None {
-		delete(sink.data, context.temp_allocator)
+	// Stream the body straight into a temp file: the body never enters
+	// parent memory, so a multi-GB download does not spike RSS. The seam
+	// opens/truncates the file; on failure the partial file is removed.
+	tmp_path := strings.concatenate([]string{final_path, ".tmp"}, context.temp_allocator)
+	if dl_err := self.download_impl(url, tmp_path); dl_err != .None {
+		os.remove(tmp_path)
 		return "", .Download_Failure
 	}
-
-	tmp_path := strings.concatenate([]string{final_path, ".tmp"}, context.temp_allocator)
-	if write_entire_file(tmp_path, sink.data) != .None {
-		delete(sink.data, context.temp_allocator)
-		os.remove(tmp_path)
-		return "", .Write_Failure
-	}
-	delete(sink.data, context.temp_allocator)
 
 	// Verify the downloaded bytes against the expected SHA256, when given.
 	if expected != "" && !file_matches_sha256(tmp_path, expected) {
@@ -257,25 +249,6 @@ Download :: proc(
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
-
-/// write_entire_file writes all of `data` to the file at `path`, creating and
-/// truncating it first. It returns `.None` on success and `.Write_Failure` on
-/// any failure (open, write, or close).
-write_entire_file :: proc(path: string, data: []byte) -> Error {
-	f, ferr := os.open(path, os.O_WRONLY | os.O_CREATE | os.O_TRUNC, os.Permissions_Default_File)
-	if ferr != nil {
-		return .Write_Failure
-	}
-	defer os.close(f)
-
-	if len(data) > 0 {
-		if _, werr := os.write(f, data); werr != nil {
-			return .Write_Failure
-		}
-	}
-
-	return .None
-}
 
 /// hash_file computes the lowercase SHA256 hex digest of the file at
 /// `filename` using the stdlib `core:crypto/hash` package.
@@ -323,37 +296,30 @@ file_matches_sha256 :: proc(path, expected: string) -> bool {
 // Download seam
 // ---------------------------------------------------------------------------
 
-/// byte_sink is a growable byte buffer that a `download_fn` writes the response
-/// of a transfer into. The default `curl_cli_download` implementation receives
-/// the body on curl's stdout; a test stub can append canned bytes instead.
-///
-/// `data` is the received payload (allocated with `allocator`).
-byte_sink :: struct {
-	data:      []byte, ///< Received bytes.
-	allocator: runtime.Allocator, ///< Allocator used for `data`.
-}
-
-/// download_fn is the signature of the transfer seam. Given a `url` and a
-/// `sink`, it performs the transfer and stores the response bytes in
-/// `sink.data` (allocated with `sink.allocator`).
+/// download_fn is the signature of the transfer seam. Given a `url`, it
+/// writes the response body into the file at `dest_path`, creating or
+/// truncating the file as needed. On success the file contains the full
+/// body; on failure the file's contents are unspecified (the caller is
+/// responsible for removing it).
 ///
 /// The default implementation is `curl_cli_download`. Tests replace it with a
-/// stub (set on `Downloader.download_impl`) so the cache/hash/rename logic can
-/// be exercised with no network — mirroring the `ssh` package repointing
+/// stub (set on `Downloader.download_impl`) so the cache/hash/rename logic
+/// can be exercised with no network — mirroring the `ssh` package repointing
 /// `SSH_BIN`.
-download_fn :: proc(url: string, sink: ^byte_sink, allocator: runtime.Allocator) -> Error
+download_fn :: proc(url: string, dest_path: string) -> Error
 
 /// curl_cli_download is the default `download_fn`: it shells out to the `curl`
-/// CLI (`curl -fsSL --proto =http,https --proto-redir =http,https -o - -- url`)
-/// and captures the body from curl's stdout. See the package doc for why we
-/// use the CLI rather than `vendor:curl`.
+/// CLI (`curl -fsSL --proto =http,https --proto-redir =http,https -o <dest> -- url`)
+/// which streams the response body straight to `dest_path` — the body never
+/// touches the parent's address space, so multi-GB transfers do not spike
+/// RSS. See the package doc for why we use the CLI rather than `vendor:curl`.
 ///
 /// Flags: `-f` fail with non-zero exit on HTTP errors, `-sL` silent and
 /// follow redirects, `--proto[`-redir`]` clamped to http(s) — plus `file` on
 /// `--proto` so local tarballs can be served without a network (offline
-/// tests, pre-seeded mirrors) — `-o -` write body to stdout, `--` end of
-/// options (so a URL can never be read as a flag).
-curl_cli_download :: proc(url: string, sink: ^byte_sink, allocator: runtime.Allocator) -> Error {
+/// tests, pre-seeded mirrors) — `-o <dest_path>` write body to that file,
+/// `--` end of options (so a URL can never be read as a flag).
+curl_cli_download :: proc(url: string, dest_path: string) -> Error {
 	args := []string {
 		"curl",
 		"-fsSL",
@@ -362,12 +328,14 @@ curl_cli_download :: proc(url: string, sink: ^byte_sink, allocator: runtime.Allo
 		"--proto-redir",
 		"=http,https",
 		"-o",
-		"-",
+		dest_path,
 		"--",
 		url,
 	}
-	stdout, stderr, code, run_err := run_capture(args, sink.allocator, context.temp_allocator)
-	defer delete(stdout, sink.allocator)
+	// stdout is unused: `curl -o <dest_path>` writes the body to the file,
+	// not to stdout. run_capture still allocates an empty stdout buffer; that
+	// is reclaimed on the temp arena's next free_all.
+	_, stderr, code, run_err := run_capture(args, context.temp_allocator, context.temp_allocator)
 	defer delete(stderr, context.temp_allocator)
 	if run_err != nil {
 		msg := os.error_string(run_err)
@@ -383,10 +351,6 @@ curl_cli_download :: proc(url: string, sink: ^byte_sink, allocator: runtime.Allo
 		)
 		return .Download_Failure
 	}
-	// Hand the body buffer to the sink: it was allocated with sink.allocator
-	// precisely so ownership transfers without a copy.
-	sink.data = stdout
-	stdout = nil // ownership moved; the defer must not free it
 	return .None
 }
 

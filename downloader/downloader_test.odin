@@ -112,18 +112,13 @@ _stub_err: Error = .None
 _stub_calls := 0
 stub_mutex: sync.Mutex = sync.Mutex{}
 
-/// `_stub_download` is the test `download_fn`: it records one call, copies the
-/// canned `_stub_payload` into `sink.data`, and returns `_stub_err`. It assumes
-/// the caller already holds `stub_mutex`.
-_stub_download :: proc(_url: string, sink: ^byte_sink, alloc: runtime.Allocator) -> Error {
+/// `_stub_download` is the test `download_fn`: it records one call, writes
+/// the canned `_stub_payload` into `dest_path`, and returns `_stub_err`. It
+/// assumes the caller already holds `stub_mutex`.
+_stub_download :: proc(_url: string, dest_path: string) -> Error {
 	_stub_calls += 1
-	n := len(_stub_payload)
-	if n > 0 {
-		grown, gerr := mem.resize_bytes(sink.data, n, mem.DEFAULT_ALIGNMENT, alloc)
-		if gerr == nil {
-			mem.copy(cast(rawptr)&grown[0], cast(rawptr)&_stub_payload[0], n)
-			sink.data = grown
-		}
+	if werr := os.write_entire_file(dest_path, _stub_payload); werr != nil {
+		return .Download_Failure
 	}
 	return _stub_err
 }
