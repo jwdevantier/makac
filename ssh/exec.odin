@@ -42,6 +42,8 @@ import "core:fmt"
 import "core:os"
 import "core:strings"
 
+import sp "../subprocess"
+
 /// run_process starts `command` with `args` and waits for it to exit.
 ///
 /// The child's standard streams are wired to `stdin`, `stdout` and
@@ -285,75 +287,11 @@ scp_get :: proc(
 	return run_process("scp", args[:], temp, stdin, stdout, stderr, child_env)
 }
 
-// resolve_command locates the absolute path of an executable and returns
-// it (allocated from `out_alloc` when freshly looked up, or aliased to
-// `command` when it already contains a separator). It honours `env`'s
-// `PATH=` entry if set, falling back to the parent process's PATH; if the
-// executable cannot be located, `found` is false.
-//
-// `command` is treated as a path literal if it contains `/`; otherwise
-// the PATH lookup runs. The candidate must be a regular file with the
-// user-execute bit set, matching how Odin's own PATH lookup behaves.
-//
-// `temp` is used for transient bookkeeping (PATH string + per-candidate
-// `stat` results) and must outlive the returned `resolved` string in
-// the sense that the caller must `delete(resolved, out_alloc)` once it
-// is done with the path -- the bookkeeping allocations are released
-// by `resolve_command` itself.
+// resolve_command is a thin wrapper around `subprocess.Find_Executable`,
+// kept for the SSH package's existing call sites. Behaviour is identical:
+// path-literal candidates require execute-bit, PATH lookup honours
+// `env`'s `PATH=` entry then falls back to the parent's PATH.
 @(private="package")
 resolve_command :: proc(command: string, env: []string, out_alloc, temp: runtime.Allocator) -> (resolved: string, found: bool) {
-	if len(command) == 0 {
-		return
-	}
-
-	if strings.index_byte(command, '/') >= 0 {
-		info, err := os.stat(command, temp)
-		if err == nil {
-			ok := info.type == .Regular && .Execute_User in info.mode
-			os.file_info_delete(info, temp)
-			if ok {
-				return command, true
-			}
-		}
-		return command, false
-	}
-
-	// Walk `env`'s PATH= entry, falling back to the parent's PATH when
-	// the override is absent.
-	path_value := ""
-	if env != nil {
-		for e in env {
-			if len(e) >= 5 && e[:5] == "PATH=" {
-				path_value = e[5:]
-				break
-			}
-		}
-	}
-	if path_value == "" {
-		// `os.get_env` returns "" both for "unset" and "set-to-empty"; in
-		// either case there is nothing to search.
-		return
-	}
-
-	// Split on `:` and try each directory.
-	remaining := path_value
-	for part in strings.split_iterator(&remaining, ":") {
-		if len(part) == 0 {
-			continue
-		}
-		candidate := fmt.aprintf("%s/%s", part, command, allocator = out_alloc)
-
-		info, err := os.stat(candidate, temp)
-		if err == nil {
-			ok := info.type == .Regular && .Execute_User in info.mode
-			os.file_info_delete(info, temp)
-			if ok {
-				return candidate, true
-			}
-		}
-		// Not a match -- release this candidate so only the resolved
-		// one survives on `out_alloc`.
-		delete(candidate, out_alloc)
-	}
-	return
+	return sp.Find_Executable(command, env, out_alloc, temp)
 }

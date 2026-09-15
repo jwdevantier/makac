@@ -9,6 +9,8 @@ import "core:os"
 import "core:strings"
 import "core:sys/posix"
 
+import sp "../subprocess"
+
 import lua "vendor:lua/5.4"
 
 // makac.spawn (design/stdlib.md, "Processes (flat — orchestrator
@@ -125,24 +127,16 @@ _opt_path_field :: proc "c" (L: ^lua.State, idx: c.int, field: cstring) -> cstri
 // execve with an explicit environment. Runs in the PARENT (before fork) —
 // the child makes no allocations. Returns `file` unchanged when it names a
 // path or nothing is found (execve then fails and the child exits 127).
+//
+// Thin wrapper around `subprocess.Find_Executable`: the candidate must be
+// a regular file with the user-execute bit set (matching what the SSH
+// package and Odin's own PATH lookup do). Without this check, a
+// non-executable candidate would be selected and the child would exit
+// 127 ("not found") when the truth is 126 ("not executable").
 @(private = "file")
 _resolve_exec_path :: proc(file: string, envp: []string) -> string {
-	if strings.contains(file, "/") {return file}
-	path_env := ""
-	for e in envp {
-		if strings.has_prefix(e, "PATH=") {path_env = e[5:]; break}
-	}
-	if path_env == "" {
-		path_env = os.get_env_alloc("PATH", context.temp_allocator)
-	}
-	if path_env == "" {path_env = "/bin:/usr/bin"}
-	dirs := strings.split(path_env, ":", context.temp_allocator)
-	for d in dirs {
-		dir := d == "" ? "." : d
-		candidate := strings.join({dir, file}, "/", context.temp_allocator)
-		if os.exists(candidate) && !os.is_dir(candidate) {return candidate}
-	}
-	return file
+	resolved, _ := sp.Find_Executable(file, envp, context.temp_allocator, context.temp_allocator)
+	return resolved
 }
 
 @(private = "file")

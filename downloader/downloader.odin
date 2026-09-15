@@ -29,7 +29,8 @@ import "core:fmt"
 import "core:io"
 import "core:os"
 import "core:strings"
-import "core:sys/posix"
+
+import sp "../subprocess"
 
 // ---------------------------------------------------------------------------
 // Errors
@@ -360,8 +361,9 @@ curl_cli_download :: proc(url: string, dest_path: string) -> Error {
 /// caller must `delete`.
 ///
 /// A non-zero exit code is data, not an error; only failing to spawn the
-/// program is an error. (Mirrors `vm.exec_capture`; duplicated because the
-/// `downloader` package must not depend on `vm` — `vm` depends on it.)
+/// program is an error. (Mirrors `vm.exec_capture`; now a thin wrapper
+/// around `subprocess.Run` — the downloader package must not depend on
+/// `vm` since `vm` depends on it.)
 run_capture :: proc(
 	argv: []string,
 	stdout_alloc, stderr_alloc: runtime.Allocator,
@@ -370,94 +372,22 @@ run_capture :: proc(
 	code: int,
 	err: os.Error,
 ) {
-	stdout_r, stdout_w := os.pipe() or_return
-	defer os.close(stdout_r)
-	stderr_r, stderr_w := os.pipe() or_return
-	defer os.close(stderr_r)
-
-	p: os.Process
-	{
-		// After the child spawns it holds its own copies of the write ends;
-		// drop the parent's so our read ends see EOF at child exit. (Defers
-		// are block-scoped; this bare block ends right after process_start.)
-		defer os.close(stdout_w)
-		defer os.close(stderr_w)
-		pp, perr := os.process_start(
-			os.Process_Desc{command = argv, stdout = stdout_w, stderr = stderr_w},
-		)
-		if perr != nil {
-			err = perr
-			return
-		}
-		p = pp
-	}
-
-	stdout_b := make([dynamic]u8, stdout_alloc)
-	stderr_b := make([dynamic]u8, stderr_alloc)
-	buf: [4096]u8 = ---
-	stdout_done, stderr_done: bool
-	rerr: os.Error
-
-	// Block in posix.poll on both read ends (vm/exec.odin:187-203 does the
-	// same) instead of busy-spinning on os.pipe_has_data — the spin pegs a
-	// core per download. The downloader has no in-process deadline here;
-	// --max-time on the curl invocation is the bound.
-	posix_fd :: proc(f: ^os.File) -> posix.FD {return posix.FD(i32(os.fd(f)))}
-
-	for rerr == nil && (!stdout_done || !stderr_done) {
-		fds: [2]posix.pollfd
-		nfds := 0
-		if !stdout_done {fds[nfds] = {fd = posix_fd(stdout_r), events = {.IN}}; nfds += 1}
-		if !stderr_done {fds[nfds] = {fd = posix_fd(stderr_r), events = {.IN}}; nfds += 1}
-
-		n := posix.poll(&fds[0], auto_cast nfds, -1)
-		if n < 0 {
-			rerr = os.Platform_Error(posix.errno())
-			break
-		}
-
-		wi := 0
-		if !stdout_done {
-			if .IN in fds[0].revents {
-				rn, herr := os.read(stdout_r, buf[:])
-				switch herr {
-				case nil:
-					append(&stdout_b, ..buf[:rn])
-				case .EOF, .Broken_Pipe:
-					stdout_done = true
-				case:
-					rerr = herr
-				}
-			} else if fds[0].revents & {.HUP, .ERR, .NVAL} != {} {
-				stdout_done = true
-			}
-			wi = 1
-		}
-		if rerr == nil && !stderr_done {
-			if .IN in fds[wi].revents {
-				rn, herr := os.read(stderr_r, buf[:])
-				switch herr {
-				case nil:
-					append(&stderr_b, ..buf[:rn])
-				case .EOF, .Broken_Pipe:
-					stderr_done = true
-				case:
-					rerr = herr
-				}
-			} else if fds[wi].revents & {.HUP, .ERR, .NVAL} != {} {
-				stderr_done = true
-			}
-		}
-	}
-	if rerr != nil {
-		err = rerr
+	// Curl is invoked with `-o <dest_path>`: the body lands in a file, so
+	// stdout has nothing meaningful. We still drain it (subprocess.Run
+	// creates the pipe and discards bytes) so curl doesn't block on a
+	// full pipe buffer; stderr is the only stream we actually keep.
+	sub_res, sub_err := sp.Run(argv, sp.Options{
+		capture_stdout = false,
+		capture_stderr = true,
+		allocator      = stderr_alloc,
+	})
+	if sub_err != nil {
+		err = sub_err
 		return
 	}
-
-	state := os.process_wait(p) or_return
-	code = state.exit_code
-	stdout = stdout_b[:]
-	stderr = stderr_b[:]
+	stdout = nil
+	stderr = sub_res.stderr
+	code = sub_res.code
 	return
 }
 

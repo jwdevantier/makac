@@ -6,9 +6,10 @@ import "base:runtime"
 import "core:c"
 import "core:fmt"
 import "core:os"
-import "core:sys/posix"
 import "core:strings"
 import "core:time"
+
+import sp "../subprocess"
 
 import lua "vendor:lua/5.4"
 
@@ -57,6 +58,9 @@ Exec_Output_Callback :: proc "c" (ctx: rawptr, stream: string, line: string) -> 
 // A non-zero exit code is data, not an error; only failing to spawn the
 // program at all is an error. The result strings are allocated with
 // `allocator` and are owned by the caller.
+//
+// Implemented as a thin wrapper around `subprocess.Run`; the body lives
+// there so `downloader.run_capture` and `ssh.run_process` can share it.
 exec_capture :: proc(
 	argv: []string,
 	working_dir: string = "",
@@ -71,201 +75,29 @@ exec_capture :: proc(
 	res: Exec_Result,
 	err: os.Error,
 ) {
-	stdout_r, stdout_w := os.pipe() or_return
-	defer os.close(stdout_r)
-	stderr_r, stderr_w := os.pipe() or_return
-	defer os.close(stderr_r)
-
-	// join_stderr (the shell's `2>&1`): the child's stderr writes into
-	// stdout's pipe — one stream, true interleaved order. The (unused)
-	// stderr pipe is created and closed exactly as in the split-stream case;
-	// the plain path is byte-for-byte the original behavior.
-	child_stderr_w := stderr_w
-	if join_stderr {child_stderr_w = stdout_w}
-
-	stdin_r: ^os.File
-	stdin_w: ^os.File
-	if _, has_stdin := stdin_data.?; has_stdin {
-		stdin_r, stdin_w = os.pipe() or_return
+	sub_res, sub_err := sp.Run(argv, sp.Options{
+		working_dir    = working_dir,
+		env            = env,
+		stdin_data     = stdin_data,
+		capture_stdout = true,
+		capture_stderr = true,
+		join_stderr    = join_stderr,
+		timeout_s      = timeout_s,
+		on_line        = sp.Line_Callback(on_line),
+		on_line_ctx    = on_line_ctx,
+		allocator      = allocator,
+	})
+	if sub_err != nil {
+		err = sub_err
+		return
 	}
-	defer if stdin_r != nil {os.close(stdin_r)}
-
-	p: os.Process
-	{
-		// Once spawned, the child holds its own copies of the write-end
-		// descriptors; drop the parent's so our read ends see EOF when the
-		// child exits. (NB: defers are block-scoped; this bare block ends
-		// right after process_start.)
-		defer os.close(stdout_w)
-		defer os.close(stderr_w)
-		pp, perr := os.process_start(
-			os.Process_Desc{
-				working_dir = working_dir,
-				command     = argv,
-				env         = env,
-				stdin       = stdin_r,
-				stdout      = stdout_w,
-				stderr      = child_stderr_w,
-			},
-		)
-		if perr != nil {
-			if stdin_w != nil {os.close(stdin_w)}
-			err = perr
-			return
-		}
-		p = pp
+	res = Exec_Result{
+		code       = sub_res.code,
+		stdout     = string(sub_res.stdout),
+		stderr     = string(sub_res.stderr),
+		timed_out  = sub_res.timed_out,
+		cb_failed  = sub_res.callback_aborted,
 	}
-
-	if data, has_stdin := stdin_data.?; has_stdin {
-		// Closing the (only remaining) write end signals EOF to the child.
-		defer os.close(stdin_w)
-		// NOTE: writing more than the pipe buffer holds can block if the
-		// child never reads stdin; makac exec input is expected to be small,
-		// non-interactive data. EPIPE (child exited without reading) just
-		// ends the write; SIGPIPE is ignored at VM creation.
-		rest := transmute([]u8)data
-		for len(rest) > 0 {
-			n, werr := os.write(stdin_w, rest)
-			if werr != nil {break}
-			rest = rest[n:]
-		}
-	}
-
-	stdout_b := make([dynamic]u8, allocator)
-	stderr_b := make([dynamic]u8, allocator)
-	buf: [4096]u8 = ---
-	stdout_done := false
-	stderr_done := join_stderr // joined: no separate stderr to drain
-
-	// Line emission state: the bridge callback + its user pointer, and the
-	// latch set when a callback returns false (no further lines are emitted
-	// once stopped; the child is being shut down anyway).
-	Line_Feeder :: struct {
-		cb:      Exec_Output_Callback,
-		ctx:     rawptr,
-		stopped: bool,
-	}
-	out_fdr := Line_Feeder{cb = on_line, ctx = on_line_ctx}
-
-	// Per-stream partial line accumulated between on_line emissions.
-	// (Captures stay complete regardless; these are the streaming view only.)
-	out_line := make([dynamic]u8, context.temp_allocator)
-	err_line := make([dynamic]u8, context.temp_allocator)
-
-	// Emit every complete ('\n'-terminated) line in acc.
-	feed :: proc(acc: ^[dynamic]u8, chunk: []u8, stream: string, fdr: ^Line_Feeder) {
-		if fdr.cb == nil || fdr.stopped {return}
-		append(acc, ..chunk)
-		start := 0
-		for i in 0 ..< len(acc) {
-			if acc[i] != '\n' {continue}
-			if !fdr.cb(fdr.ctx, stream, string(acc[start:i])) {
-				fdr.stopped = true
-				clear(acc)
-				return
-			}
-			start = i + 1
-		}
-		// drop consumed lines
-		copy(acc[:], acc[start:])
-		resize(acc, len(acc) - start)
-	}
-	// Flush an unterminated tail at EOF.
-	flush :: proc(acc: ^[dynamic]u8, stream: string, fdr: ^Line_Feeder) {
-		if fdr.cb == nil || fdr.stopped || len(acc) == 0 {return}
-		if !fdr.cb(fdr.ctx, stream, string(acc[:])) {fdr.stopped = true}
-		clear(acc)
-	}
-
-	// 0 = running; 1 = SIGTERM sent, grace deadline armed; 2 = SIGKILL sent
-	escalation := 0
-	timed := timeout_s > 0
-	deadline := time.time_add(time.now(), time.Duration(timeout_s * 1e9))
-
-	for !stdout_done || !stderr_done {
-		posix_fd :: proc(f: ^os.File) -> posix.FD {return posix.FD(i32(os.fd(f)))}
-		fds: [2]posix.pollfd
-		nfds := 0
-		if !stdout_done {fds[nfds] = {fd = posix_fd(stdout_r), events = {.IN}}; nfds += 1}
-		if !stderr_done {fds[nfds] = {fd = posix_fd(stderr_r), events = {.IN}}; nfds += 1}
-
-		ms := i32(-1)
-		if timed {
-			rem := time.duration_milliseconds(time.diff(time.now(), deadline))
-			ms = rem > 0 ? i32(rem) : 0
-		}
-		n := posix.poll(&fds[0], auto_cast nfds, ms)
-		if n < 0 {
-			err = os.Platform_Error(posix.errno())
-			return
-		}
-		if n == 0 {
-			// poll timeout: only reachable with a deadline armed
-			switch escalation {
-			case 0:
-				res.timed_out = true
-				_ = os.process_terminate(p) // SIGTERM
-				deadline = time.time_add(time.now(), time.Second)
-				escalation = 1
-			case:
-				_ = os.process_kill(p) // no more grace
-				timed = false          // past this point we wait for EOF indefinitely
-				escalation = 2
-			}
-			continue
-		}
-
-		handle :: proc(
-			pfd: ^posix.pollfd,
-			f: ^os.File,
-			accum, line_acc: ^[dynamic]u8,
-			done: ^bool,
-			stream: string,
-			fdr: ^Line_Feeder,
-			readbuf: []u8,
-		) {
-			if done^ {return}
-			if .IN in pfd.revents {
-				n, rerr := os.read(f, readbuf)
-				if rerr == nil && n > 0 {
-					append(accum, ..readbuf[:n])
-					feed(line_acc, readbuf[:n], stream, fdr)
-					return
-				}
-				// EOF or read error: the stream is over either way
-				flush(line_acc, stream, fdr)
-				done^ = true
-				return
-			}
-			if pfd.revents & {.HUP, .ERR, .NVAL} != {} {
-				flush(line_acc, stream, fdr)
-				done^ = true
-			}
-		}
-
-		wi := 0
-		if !stdout_done {
-			handle(&fds[0], stdout_r, &stdout_b, &out_line, &stdout_done, "stdout", &out_fdr, buf[:])
-			wi = 1
-		}
-		if !stderr_done {
-			handle(&fds[wi], stderr_r, &stderr_b, &err_line, &stderr_done, "stderr", &out_fdr, buf[:])
-		}
-
-		if out_fdr.stopped {
-			// the callback asked to stop: shut the child down, then drain the
-			// residue quietly until the pipes close
-			res.cb_failed = true
-			_ = os.process_terminate(p)
-			_ = os.process_kill(p)
-			timed = false
-		}
-	}
-
-	state := os.process_wait(p) or_return
-	res.code = state.exit_code
-	res.stdout = string(stdout_b[:])
-	res.stderr = string(stderr_b[:])
 	return
 }
 
