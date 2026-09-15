@@ -1,0 +1,2262 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>makac</title>
+        <meta name="robots" content="noindex">
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="favicon-8114d1fc.png">
+        <link rel="stylesheet" href="css/variables-8adf115d.css">
+        <link rel="stylesheet" href="css/general-2459343d.css">
+        <link rel="stylesheet" href="css/chrome-ae938929.css">
+        <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="fonts/fonts-9644e21d.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="mdbook-highlight-css" href="highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="ayu-highlight-3fdfc3ac.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "searchindex-f8cb1cd3.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc-e6394f20.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="mdbook-body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="mdbook-sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="mdbook-page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="mdbook-menu-bar-hover-placeholder"></div>
+                <div id="mdbook-menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="mdbook-sidebar-toggle" class="icon-button" for="mdbook-sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="mdbook-sidebar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M0 96C0 78.3 14.3 64 32 64H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32C14.3 128 0 113.7 0 96zM0 256c0-17.7 14.3-32 32-32H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32c-17.7 0-32-14.3-32-32zM448 416c0 17.7-14.3 32-32 32H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H416c17.7 0 32 14.3 32 32z"/></svg></span>
+                        </label>
+                        <button id="mdbook-theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="mdbook-theme-list">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M371.3 367.1c27.3-3.9 51.9-19.4 67.2-42.9L600.2 74.1c12.6-19.5 9.4-45.3-7.6-61.2S549.7-4.4 531.1 9.6L294.4 187.2c-24 18-38.2 46.1-38.4 76.1L371.3 367.1zm-19.6 25.4l-116-104.4C175.9 290.3 128 339.6 128 400c0 3.9 .2 7.8 .6 11.6c1.8 17.5-10.2 36.4-27.8 36.4H96c-17.7 0-32 14.3-32 32s14.3 32 32 32H240c61.9 0 112-50.1 112-112c0-2.5-.1-5-.2-7.5z"/></svg></span>
+                        </button>
+                        <ul id="mdbook-theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-ayu">Ayu</button></li>
+                        </ul>
+                        <button id="mdbook-search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="mdbook-searchbar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352c79.5 0 144-64.5 144-144s-64.5-144-144-144S64 128.5 64 208s64.5 144 144 144z"/></svg></span>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">makac</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
+                        </a>
+                        <a href="https://github.com/jwdevantier/makac" title="Git repository" aria-label="Git repository">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg></span>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="mdbook-search-wrapper" class="hidden">
+                    <form id="mdbook-searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="mdbook-searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="mdbook-searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <span class=fa-svg id="fa-spin"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M304 48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zm0 416c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM48 304c26.5 0 48-21.5 48-48s-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48zm464-48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM142.9 437c18.7-18.7 18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zm0-294.2c18.7-18.7 18.7-49.1 0-67.9S93.7 56.2 75 75s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zM369.1 437c18.7 18.7 49.1 18.7 67.9 0s18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9z"/></svg></span>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="mdbook-searchresults-outer" class="searchresults-outer hidden">
+                        <div id="mdbook-searchresults-header" class="searchresults-header"></div>
+                        <ul id="mdbook-searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('mdbook-sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('mdbook-sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#mdbook-sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="mdbook-content" class="content">
+                    <main>
+                        <!-- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier -->
+<!-- SPDX-License-Identifier: CC0-1.0 -->
+<h1 id="introduction"><a class="header" href="#introduction">Introduction</a></h1>
+<p>Makac is an <strong>orchestrator / runner</strong> written in <a href="https://odin-lang.org/">Odin</a>.
+It sits somewhere between a CI system and a test-runner:
+you describe <em>what should happen</em> — run commands, transfer files, boot machines, gather
+facts — and makac carries it out, against your own machine or against remote hosts, in the
+order you specify.
+Makac comes from the Czech word Makáč (~mah-kaah-ch (as in church)), which is a hard
+worker or maker.</p>
+<p>Stylistically, makac is a cross between a GitHub Actions-style CI runner and
+Ansible-esque <em>declarative</em> actions. The difference is the foundation: instead of YAML,
+workflows are written in <strong>plain Lua</strong>. A workflow is a Lua program that calls a small
+DSL — most importantly <code>step { ... }</code> — and because it is ordinary Lua, everything the
+language offers (functions, modules, loops, conditionals) is available to structure and
+reuse your workflows.</p>
+<pre><code class="language-lua">step {
+    name = "say hello",
+    uses = "shell",
+    with = {
+        cmd = { "echo", "hello from makac" },
+    },
+}
+</code></pre>
+<h2 id="why-makac-exists"><a class="header" href="#why-makac-exists">Why makac exists</a></h2>
+<p>makac grew out of a specific need: run tests <strong>inside a QEMU VM</strong> to exercise QEMU’s NVMe
+device code — build the test artifacts, transfer files and assets into the VM, then
+execute. None of the existing options fit well:</p>
+<ul>
+<li><strong>Pure in-language test frameworks</strong> are too narrow. They cannot spawn a VM, transfer
+files and assets into it, and then run tests inside it.</li>
+<li><strong>Ansible</strong> could do the job, but only with several custom modules anyway — and it stays
+clunky, because Jinja2 + YAML is a poor medium for the kind of reuse a real test suite
+needs (for example importing sub-playbooks).</li>
+<li><strong>GitHub Actions</strong> is woefully inadequate here: you would be forced to submit changes to
+it for every run, and some code simply cannot be shared with the runner at all during
+development.</li>
+</ul>
+<p>The result is a tool that keeps what makes Ansible and GitHub Actions pleasant —
+declarative, reusable steps and pluggable actions — while replacing the YAML with a real
+programming language:</p>
+<ul>
+<li><strong>Flexible and compact.</strong> Lua is far denser than YAML, and functions, modules and loops
+make it easy to factor out repeated work.</li>
+<li><strong>Declarative where it counts.</strong> Workflows stay structured as a sequence of steps, like
+an Ansible playbook, rather than turning into imperative scripts.</li>
+<li><strong>Pluggable.</strong> Like GitHub Actions, external actions can be pulled in through makac’s
+package system (see <a href="#packages--the-data-directory">Packages &amp; the data directory</a>).</li>
+</ul>
+<h2 id="dependencies"><a class="header" href="#dependencies">Dependencies</a></h2>
+<p>makac is deliberately light on dependencies: building it needs only the Odin compiler.
+See <a href="#getting-started">Getting Started</a> for build instructions.</p>
+<h2 id="the-qemu-package"><a class="header" href="#the-qemu-package">The QEMU package</a></h2>
+<p>The QEMU integration that started it all — booting VMs, snapshots, live device hotplug via
+QMP, and the NVMe test loop — is being developed as a <strong>separate package</strong>, not part of
+makac core. It is documented on its own page: <a href="#the-makac-qemu-package">The makac QEMU package</a>.</p>
+<h2 id="about-this-book"><a class="header" href="#about-this-book">About this book</a></h2>
+<ul>
+<li><a href="#getting-started">Getting Started</a> — build makac and run your first workflow.</li>
+<li><a href="#concepts">Concepts</a> — workflows, steps, actions, targets, facts, and packages.</li>
+<li><a href="#reference">Reference</a> — the CLI, the step specification, built-in actions and
+the Lua standard library.</li>
+<li><a href="#examples">Examples</a> — complete, runnable workflows.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><!-- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier -->
+<!-- SPDX-License-Identifier: CC0-1.0 -->
+<h1 id="getting-started"><a class="header" href="#getting-started">Getting Started</a></h1>
+<p>This page walks you through building makac from source and running your first workflow.
+You need nothing but the Odin compiler to build; on Nix, everything comes from the flake.</p>
+<h2 id="build-from-source"><a class="header" href="#build-from-source">Build from source</a></h2>
+<p>Clone the repository and enter the default development shell:</p>
+<pre><code class="language-bash">git clone https://github.com/jwdevantier/makac
+cd makac
+nix develop
+</code></pre>
+<p><code>nix develop</code> drops you into the project’s dev shell, which provides the Odin compiler
+(and the usual build tools). If you are not using Nix, install the Odin compiler yourself
+and skip straight to the build.</p>
+<p>Then, from the repository root, build the binary:</p>
+<pre><code class="language-bash">odin build . -out:makac
+</code></pre>
+<p>The resulting executable is <code>./makac</code> at the repository root. It is gitignored, so it
+will never end up in a commit — rebuild whenever you pull changes.</p>
+<blockquote>
+<p><strong>Note:</strong> the <code>site</code> dev shell (<code>nix develop .#site</code>) exists for working on this
+documentation itself; it provides <code>mdbook</code> instead of the Odin toolchain.</p>
+</blockquote>
+<h2 id="a-first-tour"><a class="header" href="#a-first-tour">A first tour</a></h2>
+<h3 id="1-initialize-a-data-directory"><a class="header" href="#1-initialize-a-data-directory">1. Initialize a data directory</a></h3>
+<p>makac keeps its per-project state in a data directory named <code>.makac</code>. Every makac
+command that touches a project resolves it by walking up from your current directory
+until it finds a <code>.makac</code> or <code>.git</code> directory (creating <code>.makac</code> at the first <code>.git</code> it
+finds). It is usually easiest to create it explicitly:</p>
+<pre><code class="language-bash">makac init myproject
+makac: initialized data directory at myproject
+</code></pre>
+<p>This creates <code>myproject/.makac</code>. If the path you pass ends in <code>.makac</code>, makac uses it
+verbatim; otherwise it appends <code>/.makac</code>.</p>
+<h3 id="2-write-a-workflow"><a class="header" href="#2-write-a-workflow">2. Write a workflow</a></h3>
+<p>Workflows are Lua files. Let’s create <code>myproject/hello.lua</code>:</p>
+<pre><code class="language-lua">step {
+    name = "say hello",
+    uses = "shell",
+    with = {
+        cmd = { "echo", "hello from makac" },
+    },
+}
+</code></pre>
+<p>A <code>step</code> is a concrete instantiation of an action. Here the built-in <code>shell</code> action runs
+<code>with.cmd</code> (an array of arguments, executed directly — no shell interpolation) on the
+runner. The <code>name</code> is optional and shows up in makac’s progress reporting.</p>
+<h3 id="3-run-it"><a class="header" href="#3-run-it">3. Run it</a></h3>
+<p>From inside <code>myproject</code>, run the workflow:</p>
+<pre><code class="language-bash">cd myproject
+makac run hello.lua
+</code></pre>
+<p><code>makac run</code> evaluates the file top to bottom, executing each <code>step</code> the moment it is
+reached — which is what allows steps to sit inside ordinary Lua control flow (loops,
+conditionals, functions). Every step is reported to <strong>stderr</strong> as it starts and when it
+finishes, Ansible-style, with status and elapsed time:</p>
+<pre><code class="language-text">run: [host] say hello
+changed: [host] say hello (0.0s)
+</code></pre>
+<p>The statuses are <code>ok</code> (ran, unchanged), <code>changed</code>, <code>skipped</code>, and <code>failed</code>. A step that
+fails aborts the workflow immediately with an error naming the step and the action — a
+failed step never goes unnoticed. Output of the workflow itself stays on <strong>stdout</strong>.</p>
+<h3 id="4-fetch-packages"><a class="header" href="#4-fetch-packages">4. Fetch packages</a></h3>
+<p>makac does not resolve dependencies on its own. Packages are declared in
+<code>.makac/packages.lua</code> inside the data directory, and fetched explicitly with
+<code>makac fetch</code>:</p>
+<pre><code class="language-lua">-- .makac/packages.lua
+return {
+    {
+        id = "qemu",             -- referenced as 'qemu:&lt;action&gt;' in workflows
+        fetcher = "fetchgit",    -- built-ins: fetchurl, fetchgit, filesystem
+        with = {
+            url = "https://github.com/jwdevantier/makac.qemu.git",
+            rev = "main",
+        },
+    },
+}
+</code></pre>
+<pre><code class="language-bash">makac fetch
+</code></pre>
+<p>The file must be a Lua file that returns an array of package entries. Each entry has an
+<code>id</code> (used to reference the package’s actions, e.g. <code>qemu:vm</code>), a <code>fetcher</code> (a built-in
+fetcher name, or a function), and an optional <code>with</code> table of fetcher arguments. Fetching
+is always explicit — <code>makac run</code> never fetches automatically, so you control exactly when
+dependencies are updated. See <a href="#fetchers-1">Fetchers</a> for the details.</p>
+<h2 id="next-steps"><a class="header" href="#next-steps">Next steps</a></h2>
+<ul>
+<li>Read <a href="#concepts">Concepts</a> to understand workflows, steps, actions, targets,
+and facts.</li>
+<li>Follow <a href="#examples">Examples</a> for complete, runnable workflows — including the
+QEMU + NVMe loop that motivated makac.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><!-- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier -->
+<!-- SPDX-License-Identifier: CC0-1.0 -->
+<h1 id="concepts"><a class="header" href="#concepts">Concepts</a></h1>
+<p>This chapter introduces the ideas that make up a makac workflow. Read it top to
+bottom if you are new; each page builds on the ones before it.</p>
+<h2 id="the-model-in-one-paragraph"><a class="header" href="#the-model-in-one-paragraph">The model in one paragraph</a></h2>
+<p>A <strong>workflow</strong> is a Lua file that makac evaluates from top to bottom. As it is
+evaluated, the workflow calls <code>step { ... }</code> — each call is a <strong>step</strong>: a concrete
+instantiation of an <strong>action</strong>, executed the moment it is reached. Actions run on
+the host, and reach other machines through the <strong>target</strong> abstraction: a target is
+“somewhere I can run commands and read/write files”. Targets come in two kinds —
+the host itself, and remote hosts reached over SSH — and every target offers the
+same three operations: run a command, put files onto it, get files from it.
+Host information gathered by the built-in <code>facts</code> action (e.g. OS and
+architecture) is captured in <strong>facts</strong>, which workflows can use to decide what to
+do next. Finally, external actions are brought in as <strong>packages</strong>, declared in
+<code>.makac/packages.lua</code> and fetched explicitly with <code>makac fetch</code>; the package id
+becomes the <code>uses</code> prefix, e.g. <code>qemu:vm</code>.</p>
+<h2 id="the-pages"><a class="header" href="#the-pages">The pages</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Page</th><th>What it covers</th></tr>
+</thead>
+<tbody>
+<tr><td><a href="#workflows">Workflows</a></td><td>What a workflow file is, and how evaluation drives execution.</td></tr>
+<tr><td><a href="#steps">Steps</a></td><td>The <code>step { ... }</code> call: the step spec and its fields, status reporting, and failure handling.</td></tr>
+<tr><td><a href="#actions">Actions</a></td><td>What an action is, the result shape every action returns, and the built-in actions.</td></tr>
+<tr><td><a href="#targets">Targets</a></td><td>The host/remote abstraction: <code>run</code>, <code>put</code>, <code>get</code>, naming, and lifecycle.</td></tr>
+<tr><td><a href="#facts">Facts</a></td><td>Gathering host information with the <code>facts</code> action and fact finders.</td></tr>
+<tr><td><a href="#packages--the-data-directory">Packages &amp; the data directory</a></td><td>External actions via <code>.makac/packages.lua</code>, fetchers, and how makac locates the data directory.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="a-minimal-workflow-using-most-of-the-model"><a class="header" href="#a-minimal-workflow-using-most-of-the-model">A minimal workflow using most of the model</a></h2>
+<pre><code class="language-lua">-- gather facts about the machine makac runs on
+local facts = step {
+    uses = "facts",
+    with = {
+        finders = { os = "os" },
+    },
+}
+
+-- a step per architecture: run a different command on x86_64
+step {
+    name = "check architecture",
+    uses = "shell",
+    with = {
+        cmd = facts.out.facts.os.arch == "x86_64"
+            and { "echo", "x86_64 host" }
+            or  { "echo", "other architecture" },
+    },
+}
+</code></pre>
+<p>Every piece of this — why the steps run in order, what the result tables mean,
+where <code>facts.out</code> comes from, and how packages extend <code>uses</code> — is explained in the
+pages that follow. For the full reference, see the <a href="#reference">Reference</a>
+chapter.</p>
+<div style="break-before: page; page-break-before: always;"></div><!-- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier -->
+<!-- SPDX-License-Identifier: CC0-1.0 -->
+<h1 id="workflows"><a class="header" href="#workflows">Workflows</a></h1>
+<p>A <strong>workflow</strong> is a Lua file that describes what makac should do. You run it with
+<code>makac run &lt;workflow.lua&gt;</code>; makac evaluates the file from line 1 onwards, top to
+bottom, and every <code>step { ... }</code> call executes <strong>immediately</strong>, at the moment it is
+evaluated.</p>
+<h2 id="a-workflow-is-just-lua"><a class="header" href="#a-workflow-is-just-lua">A workflow is just Lua</a></h2>
+<p>Because execution is driven by evaluation, a workflow is an ordinary Lua program —
+anything in the Lua 5.4 standard library is available, plus the <code>makac.*</code>
+primitives and DSL functions makac embeds into the VM. There is no separate
+“workflow language” to learn beyond the small DSL surface (<code>step { ... }</code> and
+friends, documented in the <a href="#reference">Reference</a> chapter).</p>
+<p>This has one important consequence: <strong>steps can sit anywhere in plain Lua control
+flow</strong>. The workflow decides which steps run, when, and how often — a step inside a
+loop runs once per iteration, a step inside a conditional runs only when the
+condition holds, and steps can be produced by functions and reused across many
+call sites.</p>
+<h2 id="control-flow-not-scheduling"><a class="header" href="#control-flow-not-scheduling">Control flow, not scheduling</a></h2>
+<p>Compare this with a YAML-based runner, where a “workflow” is a data structure
+that the runner interprets and schedules. In makac the workflow <em>is</em> the program:
+there is no interpreter between your Lua and the steps. Want to run the same
+sequence of steps for each of several VMs? Write a Lua function that takes a VM
+and emits the steps; call it per VM.</p>
+<pre><code class="language-lua">local function check_guest(vm)
+    step {
+        name = "check guest",
+        uses = "shell",
+        target = vm,
+        with = {
+            cmd = { "uname", "-a" },
+        },
+    }
+end
+
+-- run the check on two VMs
+check_guest(vm1)
+check_guest(vm2)
+</code></pre>
+<h2 id="workflow-files"><a class="header" href="#workflow-files">Workflow files</a></h2>
+<p>There is no special file extension or directory convention — a workflow is any
+Lua file. A workflow can use <code>require</code> and local files, and packages fetched into
+the project can be loaded with <code>require("pkgs:&lt;id&gt;/...")</code> (see
+<a href="#packages--the-data-directory">Packages &amp; the data directory</a>). Because a workflow is evaluated
+once, top to bottom, later steps see the results (and targets) of earlier steps
+as plain Lua values — chaining is a natural consequence:</p>
+<pre><code class="language-lua">local boot = step {
+    uses = "qemu:vm",          -- from a fetched package (see packages.md)
+    with = { state = "started" },
+}
+
+step {
+    uses = "shell",
+    target = boot.out.target,  -- the VM the previous step started
+    with = {
+        cmd = { "echo", "hello from the VM" },
+    },
+}
+</code></pre>
+<h2 id="one-workflow-one-run"><a class="header" href="#one-workflow-one-run">One workflow, one run</a></h2>
+<p>A <code>makac run</code> invocation evaluates exactly one workflow file. When the evaluation
+finishes, makac closes every target the workflow used (see
+<a href="#targets">Targets</a>) — whether the workflow succeeded or failed — and exits.
+For how a single step reports and how failures abort the run, see
+<a href="#steps">Steps</a>.</p>
+<div style="break-before: page; page-break-before: always;"></div><!-- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier -->
+<!-- SPDX-License-Identifier: CC0-1.0 -->
+<h1 id="steps"><a class="header" href="#steps">Steps</a></h1>
+<p>A <strong>step</strong> is a concrete instantiation of an action — the equivalent of a GitHub
+Actions <em>step</em> or an Ansible <em>task</em> (an action plays the role of a GitHub Actions
+<em>action</em> or an Ansible <em>module</em>). You create one with a call to <code>step { ... }</code>.</p>
+<h2 id="steps-run-when-evaluated"><a class="header" href="#steps-run-when-evaluated">Steps run when evaluated</a></h2>
+<p><code>step { ... }</code> executes <strong>immediately</strong> when it is evaluated — it never defers.
+Since a workflow is evaluated top to bottom, a step at the top of the file runs
+before a step further down. Because execution is immediate, steps may sit inside
+plain Lua control flow: a step in a loop runs once per iteration, a step in a
+conditional runs only when the branch is taken, and a step inside a function runs
+when the function is called (see <a href="#workflows">Workflows</a>).</p>
+<h2 id="the-step-spec"><a class="header" href="#the-step-spec">The step spec</a></h2>
+<p><code>step</code> takes a single table:</p>
+<pre><code class="language-lua">local result = step {
+    -- required: which action to instantiate.
+    --   a built-in name:         "shell", "facts"
+    --   a package action:        "&lt;pkg&gt;:&lt;action&gt;", e.g. "qemu:vm"
+    uses = "shell",
+
+    -- optional: human-readable name, shown in progress reporting.
+    --   defaults to the action's registered default name, else the `uses` string.
+    name = "do a thing",
+
+    -- optional: argument table, passed to the action verbatim.
+    --   the keys vary by action; see the action's documentation.
+    with = {
+        cmd = { "echo", "hi" },
+    },
+
+    -- optional: shorthand for with.target — a target to run against.
+    --   omitted, the step runs on the host (see targets.md).
+    --   given both here and in with.target, makac errors.
+    target = some_vm,
+}
+</code></pre>
+<ul>
+<li><strong><code>uses</code></strong> (required): the action reference. A name without <code>:</code> is a built-in
+action; <code>&lt;pkg&gt;:&lt;action&gt;</code> refers to an action from a fetched package (see
+<a href="#packages--the-data-directory">Packages &amp; the data directory</a>).</li>
+<li><strong><code>name</code></strong> (optional): used in progress reporting. If omitted, the action’s
+registered default name is used; as a last resort, the <code>uses</code> string itself.</li>
+<li><strong><code>with</code></strong> (optional): the argument table handed to the action verbatim. Its
+contents are action-specific — <code>shell</code> takes <code>cmd</code>, <code>env</code>, <code>chdir</code>, and more;
+<code>facts</code> takes <code>finders</code> (see <a href="#actions">Actions</a> and <a href="#facts">Facts</a>).</li>
+<li><strong><code>target</code></strong> (optional): shorthand for <code>with.target</code>. If neither is given, the
+step runs on the host.</li>
+</ul>
+<h2 id="what-a-step-returns"><a class="header" href="#what-a-step-returns">What a step returns</a></h2>
+<p>A step returns the action’s result table, normalized so that callers can always
+rely on this shape:</p>
+<pre><code class="language-lua">{
+    err = nil,       -- string: set iff the action failed; absent otherwise
+    changed = false, -- bool: true if the action changed system state
+    skipped = false, -- bool: true if the action was skipped
+    out = {},        -- table: action-specific return values, e.g. out.stdout
+}
+</code></pre>
+<p>Actions may put anything they like in <code>out</code> — the <code>shell</code> action returns
+<code>out.stdout</code>, <code>out.stderr</code>, <code>out.code</code>, etc.; a VM action returns the VM in
+<code>out.target</code>. See <a href="#actions">Actions</a> for the full picture.</p>
+<h2 id="progress-reporting"><a class="header" href="#progress-reporting">Progress reporting</a></h2>
+<p>Every step reports twice on <strong>stderr</strong>: when it starts, and how it ended,
+Ansible-style, with the step’s status and elapsed wall-clock time. The target the
+step ran against is shown in brackets (the host’s name stands in when the step
+names no target):</p>
+<pre><code class="language-text">run: [host] do a thing
+changed: [host] do a thing (0.0s)
+ok: [host] image bootbase (41.3s)
+skipped: [vm_mini] savevm mini-base (2.1s)
+failed: [host] doomed (0.0s)
+</code></pre>
+<p>The statuses are <code>ok</code> (ran, unchanged), <code>changed</code>, <code>skipped</code>, and <code>failed</code>.
+Colors follow the usual conventions (green / yellow / cyan / red) and are
+controlled by the environment, with no flags: <code>MAKAC_COLOR=never</code> (or <code>0</code>,
+<code>false</code>, <code>no</code>, <code>off</code>) turns colors off; <code>MAKAC_COLOR=always</code> turns them on even
+when <code>TERM</code> says <code>dumb</code>; <code>NO_COLOR</code> (any value, per <a href="https://no-color.org">no-color.org</a>)
+turns them off; by default colors are on unless <code>TERM</code> is unset or <code>dumb</code>.</p>
+<p>All reporting goes to stderr; <strong>stdout stays reserved for the workflow’s own
+output</strong>, so piping the workflow’s output works without makac’s progress getting
+in the way.</p>
+<h2 id="failure-handling"><a class="header" href="#failure-handling">Failure handling</a></h2>
+<p>A failing step never goes unnoticed. If the action raises, or its result sets
+<code>err</code>, the step aborts the workflow with an error naming the step and the action:</p>
+<pre><code class="language-text">step 'doom' (uses 'shell') failed: command exited with code 1: ...
+</code></pre>
+<p>Actions that treat failure as data — e.g. <code>shell</code> with <code>ignore_exit_code</code> — do
+not set <code>err</code>, and their steps continue normally. See <a href="#actions">Actions</a> for
+how actions signal success and failure, and the
+<a href="#step-specification">Step specification</a> reference page for the exact field
+table.</p>
+<div style="break-before: page; page-break-before: always;"></div><!-- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier -->
+<!-- SPDX-License-Identifier: CC0-1.0 -->
+<h1 id="actions"><a class="header" href="#actions">Actions</a></h1>
+<p>An <strong>action</strong> is a unit of work that a step instantiates. Actions are inspired by
+Ansible: they describe a desired end-state rather than an operation to perform —
+declarative rather than imperative. The <code>shell</code> action, for example, does not say
+“run this command”; it says “make it so that this command was run” (and reports
+whether it <em>changed</em> anything).</p>
+<p>The step is the only way an action runs — actions are never invoked directly by a
+workflow, only through <code>step { uses = ..., with = ... }</code>. See
+<a href="#steps">Steps</a> for the step spec.</p>
+<h2 id="how-actions-are-implemented"><a class="header" href="#how-actions-are-implemented">How actions are implemented</a></h2>
+<p>Actions are implemented in <strong>Lua</strong> and run on the host — the machine makac itself
+runs on. When an action needs to gather information from, or cause state change
+on, another machine, it does so through the <strong>target</strong> abstraction: running shell
+commands on the target, or moving files to/from it (see <a href="#targets">Targets</a>).
+The Lua code drives the decision-making; the target is just the interface to a
+remote machine.</p>
+<h2 id="the-result-shape"><a class="header" href="#the-result-shape">The result shape</a></h2>
+<p>Every action returns a result table. makac normalizes it, filling in defaults, so
+a step’s caller can always rely on this shape:</p>
+<pre><code class="language-lua">{
+    err = nil,       -- string: set iff the action failed; describes what went
+                     --         wrong (absent otherwise — failure is never
+                     --         reported via the other keys)
+    changed = false, -- bool: true if the action changed system state
+    skipped = false, -- bool: true iff the action was skipped
+    out = {},        -- table: action-specific return values, varies by action
+}
+</code></pre>
+<ul>
+<li><code>err</code> is the only failure channel. An action that “fails” as part of normal
+operation — e.g. a command that exits non-zero, when the action opts to treat
+that as data — leaves <code>err</code> unset.</li>
+<li><code>out</code> holds whatever the action wants to give back: <code>shell</code> returns the
+captured <code>stdout</code>/<code>stderr</code>/<code>code</code>; an action that starts a VM returns the VM as
+<code>out.target</code>.</li>
+</ul>
+<h2 id="naming-actions"><a class="header" href="#naming-actions">Naming actions</a></h2>
+<p>An action is referenced by name in a step’s <code>uses</code>. Names without a <code>:</code> are the
+built-in actions. External actions come from packages and are referenced as
+<code>&lt;package id&gt;:&lt;action name&gt;</code> — the part before the <code>:</code> is the package id, the
+part after is the action name. A package id can therefore never contain <code>:</code>
+itself (see <a href="#packages--the-data-directory">Packages &amp; the data directory</a>).</p>
+<h2 id="built-in-actions"><a class="header" href="#built-in-actions">Built-in actions</a></h2>
+<p>A small subset of actions is built into makac. They are identified by not
+containing any <code>:</code> character:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Action</th><th>Purpose</th></tr>
+</thead>
+<tbody>
+<tr><td><code>shell</code></td><td>Run a command on the host (or on a target), capturing output and exit code.</td></tr>
+<tr><td><code>facts</code></td><td>Gather host information via fact finders. See <a href="#facts">Facts</a>.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Both are documented in detail in the <a href="#built-in-actions-1">Reference</a>
+chapter; their concepts are covered on this chapter’s pages.</p>
+<h2 id="where-actions-come-from"><a class="header" href="#where-actions-come-from">Where actions come from</a></h2>
+<ul>
+<li><strong>Built-in</strong> — <code>shell</code> and <code>facts</code>, always available.</li>
+<li><strong>Packages</strong> — a bundle of Lua code and actions fetched from elsewhere,
+exposing actions under its id (e.g. <code>qemu:vm</code>, <code>qemu:img</code>). Packages can also
+provide custom fetchers, used to fetch <em>other</em> packages. See
+<a href="#packages--the-data-directory">Packages &amp; the data directory</a>.</li>
+</ul>
+<p>Because actions are Lua, a package’s actions are ordinary Lua functions wrapped
+by <code>makac.define_action</code> — anything a package can do, a workflow could in
+principle do directly; packages just make it shareable and versioned.</p>
+<div style="break-before: page; page-break-before: always;"></div><!-- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier -->
+<!-- SPDX-License-Identifier: CC0-1.0 -->
+<h1 id="targets"><a class="header" href="#targets">Targets</a></h1>
+<p>A <strong>target</strong> is a place where makac can run commands and move files. It is the
+single abstraction through which actions touch some machine other than the one
+makac itself runs on — gathering information or causing state change.</p>
+<p>A target should be understood as <em>“somewhere I can run commands and read/write
+files”</em>, not as any particular connection. Addresses, credentials and ports are
+the target’s own business; the action using it does not care.</p>
+<h2 id="kinds"><a class="header" href="#kinds">Kinds</a></h2>
+<p>Two kinds of target exist:</p>
+<ul>
+<li><strong>host</strong> — the machine makac itself runs on. Always available. Used whenever a
+step does not name a target.</li>
+<li><strong>remote</strong> — a machine reached over SSH. Typically obtained as the result of an
+earlier step (for example, an action that starts a VM returns a handle to that
+VM which can then be used as a target).</li>
+</ul>
+<p>The set of kinds is fixed by makac itself; actions do not define new kinds — they
+only <em>produce</em> targets of existing kinds.</p>
+<h2 id="operations"><a class="header" href="#operations">Operations</a></h2>
+<p>Every target supports exactly three operations:</p>
+<h3 id="run--execute-a-command"><a class="header" href="#run--execute-a-command">run — execute a command</a></h3>
+<pre><code class="language-lua">local res = target:run({ "cat", "/etc/resolv.conf" }, {
+    chdir = "/tmp",       -- optional working directory
+    env = { FOO = "bar" },-- optional extra environment
+    stdin = "data",       -- optional non-interactive stdin
+})
+-- res = { code = 0, stdout = "...", stderr = "..." }
+</code></pre>
+<p>The command is a list of words: the program followed by its arguments. A working
+directory may be supplied (defaults: the directory makac was invoked from for the
+host, the account’s home directory for a remote target). Output is captured as
+two separate streams — stdout and stderr — together with the exit status.</p>
+<p>Importantly, a <strong>non-zero exit status is data, not an error</strong>. It is returned to
+the action, which decides whether it matters (the <code>shell</code> action’s
+<code>ignore_exit_code</code> option is the most basic example). A <em>failed</em> <code>run</code> means the
+command could not be executed at all — the target could not be reached, or the
+program could not be started.</p>
+<h3 id="put--upload-to-the-target"><a class="header" href="#put--upload-to-the-target">put — upload to the target</a></h3>
+<pre><code class="language-lua">target:put("/host/path/or/dir", "relative/or/absolute/on/target")
+</code></pre>
+<p>Uploads a file or directory from the host onto the target. When the source is a
+directory, the transfer is recursive. A relative path on the target resolves
+against the account’s home directory (what <code>scp</code> does).</p>
+<h3 id="get--download-from-the-target"><a class="header" href="#get--download-from-the-target">get — download from the target</a></h3>
+<pre><code class="language-lua">target:get("/path/on/target", "/host/path")
+</code></pre>
+<p>Downloads a file or directory from the target to the host. When the source is a
+directory, the transfer is recursive. A relative path on the target resolves
+against the account’s home directory.</p>
+<h2 id="naming"><a class="header" href="#naming">Naming</a></h2>
+<p>Every target has a name, used when reporting progress:</p>
+<pre><code class="language-text">[vm1] compiling test program...
+[vm1] running test...
+</code></pre>
+<p>The host’s name is something recognizable such as <code>host</code>.</p>
+<h2 id="obtaining-a-target"><a class="header" href="#obtaining-a-target">Obtaining a target</a></h2>
+<ul>
+<li>The <strong>host</strong> target always exists and is used automatically whenever a step
+does not name one. It is globally available to workflows that want to refer to
+it explicitly (as <code>makac.host</code>).</li>
+<li>A <strong>remote</strong> target is obtained from an action’s result — specifically
+<code>out.target</code>:</li>
+</ul>
+<pre><code class="language-lua">local res = step {
+    uses = "qemu:vm",
+    with = { state = "started" },
+}
+local vm = res.out.target  -- a remote target, usable in later steps
+</code></pre>
+<p>The resulting target may then be passed to a later step’s <code>target</code> field (or
+<code>with.target</code>), directing that step at the machine the earlier action stood up:</p>
+<pre><code class="language-lua">step {
+    uses = "shell",
+    target = vm,
+    with = {
+        cmd = { "uname", "-a" },
+    },
+}
+</code></pre>
+<h2 id="lifecycle"><a class="header" href="#lifecycle">Lifecycle</a></h2>
+<h3 id="session-reuse"><a class="header" href="#session-reuse">Session reuse</a></h3>
+<p>Operations on a given target are not one-shot: a target stays usable across the
+steps that name it. In particular, reaching a remote target authenticates once;
+subsequent commands and file transfers reuse that session (SSH connection
+multiplexing) rather than re-establishing it. Any working state a target needs
+lives under the makac data directory, separate per target, so two targets never
+interfere.</p>
+<h3 id="closing"><a class="header" href="#closing">Closing</a></h3>
+<p>A target may be closed once it is no longer needed:</p>
+<ul>
+<li>Closing is <strong>idempotent</strong> — closing an already-closed target succeeds and does
+nothing.</li>
+<li>Closing frees the target’s resources and tears down any session it held open.</li>
+<li>After a target is closed, <code>run</code>, <code>put</code> and <code>get</code> on it fail.</li>
+</ul>
+<p>The runner closes <strong>every</strong> target when the workflow finishes — even when the
+workflow failed — so individual steps never have to do this themselves. An action
+may close a target earlier when it makes sense: for example, an action that stops
+a VM closes the VM’s target, and any later step using that target fails.</p>
+<h2 id="relationship-to-steps"><a class="header" href="#relationship-to-steps">Relationship to steps</a></h2>
+<ul>
+<li><code>shell</code> is the simplest consumer: it runs its command on the host by default,
+and on <code>with.target</code> when one is given.</li>
+<li>Any other action may accept a target the same way. An action that documents a
+<code>target</code> parameter accepts the same values <code>shell</code> does — a real target object,
+or via the step’s <code>target</code> shorthand.</li>
+</ul>
+<p>See the <a href="#targets-1">Targets reference</a> for the full API surface,
+including how workflows can construct their own targets.</p>
+<div style="break-before: page; page-break-before: always;"></div><!-- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier -->
+<!-- SPDX-License-Identifier: CC0-1.0 -->
+<h1 id="facts"><a class="header" href="#facts">Facts</a></h1>
+<p><strong>Facts</strong> are host information gathered by the built-in <code>facts</code> action — an
+action like any other, instantiated with <code>step { uses = "facts", ... }</code>.</p>
+<h2 id="unlike-ansible-gathering-is-your-choice"><a class="header" href="#unlike-ansible-gathering-is-your-choice">Unlike Ansible, gathering is your choice</a></h2>
+<p>In Ansible, gathering facts is an obligatory phase that runs at the start of a
+play. makac deliberately does not work that way:</p>
+<ul>
+<li><strong>You choose <em>when</em> to collect facts.</strong> There is no automatic pre-phase; a
+workflow gathers facts exactly when a <code>facts</code> step runs — and any later step
+may have changed the system in ways that alter the facts.</li>
+<li><strong>You choose <em>which</em> finders to run</strong>, and how many in one go. Run only the
+finders you need, when you need them.</li>
+</ul>
+<h2 id="fact-finders"><a class="header" href="#fact-finders">Fact finders</a></h2>
+<p>A <strong>fact finder</strong> is a small Lua function that:</p>
+<ul>
+<li>takes a target,</li>
+<li>runs commands on that target to determine some information,</li>
+<li>returns an associative table of whatever it wants to expose.</li>
+</ul>
+<p>Its signature is <code>function (target) return {...} end</code>.</p>
+<p>The <code>facts</code> action is given an associative table mapping a <strong>namespace</strong> to a
+finder:</p>
+<pre><code class="language-lua">local facts = step {
+    name = "Gather system facts",
+    uses = "facts",
+    with = {
+        finders = {
+            os  = "os",   -- a built-in finder, referred to by name
+            env = "env",  -- another built-in
+        },
+        -- optional: the target to gather from.
+        --   omitted, facts are gathered on the runner (host) itself.
+        -- target = vm1,
+    },
+}
+</code></pre>
+<p>Each namespace becomes a table under the result: <code>facts.out.facts.&lt;namespace&gt;</code>.
+For the example above, <code>facts.out.facts.os</code> and <code>facts.out.facts.env</code>.</p>
+<p>A finder value is either:</p>
+<ul>
+<li>a <strong>string</strong> naming a built-in finder, or</li>
+<li>a <strong>function</strong> — a custom finder, for example one imported from a package’s
+<code>lib/</code> directory (<code>require("pkgs:&lt;id&gt;/...")</code>, see
+<a href="#packages--the-data-directory">Packages &amp; the data directory</a>).</li>
+</ul>
+<h2 id="built-in-finders"><a class="header" href="#built-in-finders">Built-in finders</a></h2>
+<p>makac ships with two built-in finders:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Finder</th><th>What it returns</th></tr>
+</thead>
+<tbody>
+<tr><td><code>os</code></td><td>Operating system and architecture of the target, from <code>uname -s</code> and <code>uname -m</code>: <code>{ os = "linux", arch = "x86_64" }</code>.</td></tr>
+<tr><td><code>env</code></td><td>The target’s environment variables, as a <code>NAME -&gt; value</code> table (from <code>env</code>).</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="using-facts-in-a-workflow"><a class="header" href="#using-facts-in-a-workflow">Using facts in a workflow</a></h2>
+<p>Because a step returns its result, gathered facts are just a Lua value the rest
+of the workflow can branch on:</p>
+<pre><code class="language-lua">local facts = step {
+    uses = "facts",
+    with = {
+        finders = { os = "os" },
+    },
+}
+
+if facts.out.facts.os.arch == "x86_64" then
+    step {
+        uses = "shell",
+        with = {
+            cmd = { "echo", "building for x86_64" },
+        },
+    }
+end
+</code></pre>
+<p>The <code>facts</code> action never changes system state, so its result reports
+<code>changed = false</code>.</p>
+<p>Writing your own finders is covered in the
+<a href="#built-in-actions-1">Built-in actions reference</a>; the built-in finders are
+also listed there.</p>
+<div style="break-before: page; page-break-before: always;"></div><!-- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier -->
+<!-- SPDX-License-Identifier: CC0-1.0 -->
+<h1 id="packages--the-data-directory"><a class="header" href="#packages--the-data-directory">Packages &amp; the data directory</a></h1>
+<p>External actions are distributed as <strong>packages</strong> — bundles of Lua code and actions
+that a project declares and fetches. Packages are what give makac its
+GitHub-Actions-like pluggability: anyone can publish a package exposing actions,
+and a workflow refers to them by their package id.</p>
+<h2 id="the-data-directory"><a class="header" href="#the-data-directory">The data directory</a></h2>
+<p>makac keeps its per-project state in a data directory named <strong><code>.makac</code></strong>, local
+to the project and residing in the project’s root folder. It holds the package
+list (<code>packages.lua</code>), fetched packages, and per-target working state.</p>
+<p>When makac is invoked, it looks for the data directory like so:</p>
+<ol>
+<li>look in the current directory for <code>.makac</code>; if not found, continue</li>
+<li>look in the current directory for <code>.git</code>; if not found, continue</li>
+<li>look in the parent directory, and loop back to step 1</li>
+</ol>
+<p>Two special cases:</p>
+<ul>
+<li>If a <code>.git</code> folder is found but no <code>.makac</code> folder, makac <strong>creates</strong> the
+<code>.makac</code> directory there — it can determine where your project root is, so it
+just sets the data directory up for you.</li>
+<li>If neither is found all the way to the filesystem root, makac errors out and
+tells you to initialize the data directory yourself.</li>
+</ul>
+<h3 id="initializing-explicitly"><a class="header" href="#initializing-explicitly">Initializing explicitly</a></h3>
+<p><code>makac init &lt;path&gt;</code> creates a data directory:</p>
+<ul>
+<li>if <code>&lt;path&gt;</code> ends with <code>.makac</code>, it is used exactly as given;</li>
+<li>otherwise, makac creates <code>&lt;path&gt;/.makac</code>.</li>
+</ul>
+<pre><code class="language-bash">makac init myproject
+makac: initialized data directory at myproject
+</code></pre>
+<h2 id="declaring-packages"><a class="header" href="#declaring-packages">Declaring packages</a></h2>
+<p>Packages are declared in <code>.makac/packages.lua</code> inside the data directory. The
+file must return an array-like table whose elements are tables with at least
+<code>id</code> and <code>fetcher</code> keys:</p>
+<pre><code class="language-lua">-- .makac/packages.lua
+-- elements are fetched in the order given; earlier packages may provide
+-- specialized fetchers for fetching later packages
+return {
+    {
+        id = "qemu",   -- referenced in workflows as 'qemu:&lt;action&gt;'
+        fetcher = "fetchgit",
+        with = {
+            url = "https://github.com/jwdevantier/makac.qemu",
+            rev = "1c194ed",
+        },
+    },
+}
+</code></pre>
+<ul>
+<li><strong><code>id</code></strong> — becomes the prefix used in workflows when referring to actions
+defined by this package: the action <code>hello</code> in a package with id <code>qemu</code> is
+<code>qemu:hello</code>. Ids may not contain <code>:</code> (the separator).</li>
+<li><strong><code>fetcher</code></strong> — identifies how to fetch the package: a built-in fetcher name
+(<code>fetchurl</code>, <code>fetchgit</code>, <code>filesystem</code>), or a fetcher contributed by an earlier
+package (<code>mypkg:fetchcvs</code>), or a function.</li>
+<li><strong><code>with</code></strong> — optional argument table for the fetcher.</li>
+</ul>
+<p>Fetching is <strong>always explicit</strong>: <code>makac fetch</code> downloads every package in the
+list, in order, and <code>makac run</code> never fetches automatically. When you update the
+list, you run <code>makac fetch</code> again — no magic, no surprise network access during
+a run.</p>
+<h2 id="package-layout"><a class="header" href="#package-layout">Package layout</a></h2>
+<p>A package must have a <strong><code>makac.lua</code></strong> file at its root, exporting the package’s
+definitions:</p>
+<pre><code class="language-lua">-- makac.lua (at the package root)
+return {
+    -- custom fetchers other packages can use
+    fetchers = {
+        fetchcvs = function(args, destdir) ... end,
+    },
+    -- the package's actions
+    actions = {
+        hello  = function(with) ... end,
+        reload = function(with) ... end,
+    },
+}
+</code></pre>
+<p>If the package contains a <code>./lib</code> directory, it is added to the package loader
+under the key <code>pkgs:&lt;id&gt;</code>: to access <code>./lib/a.lua</code> in a package with id <code>foo</code>,
+write <code>require("pkgs:foo/a")</code>. This is how workflows (and packages) share helper
+code with actions.</p>
+<h2 id="fetchers"><a class="header" href="#fetchers">Fetchers</a></h2>
+<p>makac provides three built-in fetchers:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Fetcher</th><th>Purpose</th></tr>
+</thead>
+<tbody>
+<tr><td><code>fetchurl</code></td><td>Fetch a package over HTTP(S), verifying it against a SHA256 hash and uncompressing it.</td></tr>
+<tr><td><code>fetchgit</code></td><td>Fetch a package from a Git repository; <code>rev</code> pins a commit, tag, or branch.</td></tr>
+<tr><td><code>filesystem</code></td><td>Use a package from the local filesystem <em>in place</em> — the development fetcher.</td></tr>
+</tbody>
+</table>
+</div>
+<pre><code class="language-lua">-- fetchurl
+{
+    id = "somepkg",
+    fetcher = "fetchurl",
+    with = {
+        url = "https://example.com/some-file.tgz",
+        sha256 = "...",       -- required; must match the fetched content
+        unpacker = "tar",     -- required; or a custom uncompressor function
+    },
+}
+
+-- fetchgit
+{
+    id = "somepkg",
+    fetcher = "fetchgit",
+    with = {
+        url = "https://github.com/user/some-repo.git",
+        rev = "v1.2.0",       -- a commit hash, a tag, or a branch
+    },
+}
+
+-- filesystem: used in place, nothing is copied
+{
+    id = "mypkg.dev",
+    fetcher = "filesystem",
+    with = {
+        path = "path/to/package",  -- relative to the project root
+    },
+}
+</code></pre>
+<p>Packages may provide additional fetchers; to use one, prefix the exported
+fetcher with the id of the package that provides it, e.g. <code>mypkg:fetchcvs</code>.</p>
+<p>See the <a href="#fetchers-1">Fetchers reference</a> for the full argument
+tables.</p>
+<div style="break-before: page; page-break-before: always;"></div><!-- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier -->
+<!-- SPDX-License-Identifier: CC0-1.0 -->
+<h1 id="reference"><a class="header" href="#reference">Reference</a></h1>
+<p>This chapter is the detailed, code-accurate reference for makac. Where the
+<a href="#concepts">Concepts</a> chapter explains <em>why</em>, this chapter documents
+<em>exactly</em> — every field, default, argument, and return value.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Page</th><th>What it documents</th></tr>
+</thead>
+<tbody>
+<tr><td><a href="#cli">CLI</a></td><td>The <code>makac</code> command-line interface: <code>init</code>, <code>run</code>, <code>fetch</code>, <code>--version</code>, and exit behavior.</td></tr>
+<tr><td><a href="#step-specification">Step specification</a></td><td>The <code>step { ... }</code> spec: fields, defaults, and failure handling.</td></tr>
+<tr><td><a href="#built-in-actions-1">Built-in actions</a></td><td>The <code>shell</code> and <code>facts</code> actions: their <code>with</code> inputs and result <code>out</code> shapes.</td></tr>
+<tr><td><a href="#targets-1">Targets</a></td><td>The target abstraction: <code>run</code>, <code>put</code>, <code>get</code>, session reuse, and closing.</td></tr>
+<tr><td><a href="#fetchers-1">Fetchers</a></td><td>The fetcher mechanism for packages: the three built-in fetchers and their arguments.</td></tr>
+<tr><td><a href="#lua-standard-library">Lua standard library</a></td><td>The <code>makac.*</code> primitives exposed to workflows, beyond plain Lua 5.4.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Everything here was verified against makac’s source (the Lua prelude and the
+Odin VM bindings), so where a design note and the code disagree, the code wins.</p>
+<div style="break-before: page; page-break-before: always;"></div><!-- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier -->
+<!-- SPDX-License-Identifier: CC0-1.0 -->
+<h1 id="cli"><a class="header" href="#cli">CLI</a></h1>
+<p><code>makac</code> is a single binary with three commands and one flag:</p>
+<pre><code class="language-text">usage: makac [--version] &lt;command&gt; [args]
+
+commands:
+  init &lt;path&gt;     initialize a .makac data directory
+  run &lt;workflow&gt;  run a workflow file
+  fetch           fetch packages listed in .makac/packages.lua
+
+flags:
+  --version       print version (major.minor) and exit
+</code></pre>
+<h2 id="makac-init-path"><a class="header" href="#makac-init-path"><code>makac init &lt;path&gt;</code></a></h2>
+<p>Initializes a makac data directory (<code>.makac</code>) at <code>&lt;path&gt;</code>:</p>
+<ul>
+<li>if <code>&lt;path&gt;</code> ends with <code>.makac</code>, it is used exactly as given;</li>
+<li>otherwise makac creates <code>&lt;path&gt;/.makac</code>.</li>
+</ul>
+<pre><code class="language-bash">$ makac init myproject
+makac: initialized data directory at myproject
+</code></pre>
+<p>Creating an already-existing data directory is not an error. <code>init</code> is how you
+set up a project when makac cannot find a project root on its own (see
+<a href="#packages--the-data-directory">The data directory</a>).</p>
+<h2 id="makac-run-workflow"><a class="header" href="#makac-run-workflow"><code>makac run &lt;workflow&gt;</code></a></h2>
+<p>Evaluates a workflow file (any Lua file) top to bottom, in a fresh VM that has
+the full Lua 5.4 standard library plus the <code>makac.*</code> primitives and DSL (see
+<a href="#lua-standard-library">Lua standard library</a>):</p>
+<pre><code class="language-bash">makac run my_workflow.lua
+</code></pre>
+<p>Before the workflow itself runs, makac loads every package listed in
+<code>.makac/packages.lua</code> (in file order), merging their actions and fetchers into
+the registries under their <code>&lt;id&gt;:</code> prefix and making their <code>lib/</code> require-able
+via <code>require("pkgs:&lt;id&gt;/...")</code>. A listed-but-not-fetched package aborts the run
+with an error telling you to run <code>makac fetch</code> first. No package list means no
+packages — silently.</p>
+<p>When the workflow finishes — successfully <strong>or</strong> by failing — makac closes every
+target the workflow used, then exits.</p>
+<h2 id="makac-fetch"><a class="header" href="#makac-fetch"><code>makac fetch</code></a></h2>
+<p>Fetches every package listed in <code>.makac/packages.lua</code> into
+<code>.makac/packages/&lt;id&gt;/</code>, in file order, using each entry’s declared fetcher.
+Fetching is <strong>never</strong> automatic: you run <code>makac fetch</code> yourself, whenever you
+add or change dependencies.</p>
+<pre><code class="language-bash">$ makac fetch
+defined packages (#1):
+  1. qemu (fetcher: fetchgit)
+fetching qemu via fetchgit...
+fetched qemu
+</code></pre>
+<p>If no <code>packages.lua</code> exists yet, <code>makac fetch</code> is <strong>not</strong> an error — it prints
+where the file lives and an example entry, and exits 0:</p>
+<pre><code class="language-text">makac: no packages.lua found.
+
+The package list for this project lives at:
+  /path/to/project/.makac/packages.lua
+...
+</code></pre>
+<p>Any fetch failure (unknown fetcher, checksum mismatch, network error, bad
+<code>with</code> arguments) aborts the whole fetch run with a non-zero exit.</p>
+<h2 id="--version"><a class="header" href="#--version"><code>--version</code></a></h2>
+<p>Prints the version as <code>major.minor</code> and exits:</p>
+<pre><code class="language-bash">$ makac --version
+0.3
+</code></pre>
+<p>The flag lives on the root command, so <code>makac --version</code> works from anywhere —
+no data directory is resolved, no VM is created. The same <code>major.minor</code> pair is
+available to workflows as <code>makac.env.version()</code> (see
+<a href="#lua-standard-library">Lua standard library</a>).</p>
+<h2 id="exit-behavior"><a class="header" href="#exit-behavior">Exit behavior</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Situation</th><th>Exit code</th></tr>
+</thead>
+<tbody>
+<tr><td><code>makac --version</code></td><td>0</td></tr>
+<tr><td><code>makac fetch</code> with no <code>packages.lua</code></td><td>0 (informational)</td></tr>
+<tr><td>Successful <code>makac run</code> / <code>makac fetch</code></td><td>0</td></tr>
+<tr><td>Unknown command, missing/extra arguments, unparseable flags</td><td>1 (usage printed to stderr)</td></tr>
+<tr><td><code>makac run</code> workflow failure (a step failed, or the workflow raised)</td><td>1</td></tr>
+<tr><td><code>makac fetch</code> failure (bad entry, fetch error)</td><td>1</td></tr>
+<tr><td><code>makac run</code> / <code>makac fetch</code> with no resolvable data directory</td><td>1 (with advice: <code>makac init &lt;path&gt;</code>)</td></tr>
+<tr><td><code>makac init</code> failure (could not create directory)</td><td>1</td></tr>
+</tbody>
+</table>
+</div>
+<p>Error messages go to stderr; informational output from fetch goes to stdout.</p>
+<h2 id="the-data-directory-1"><a class="header" href="#the-data-directory-1">The data directory</a></h2>
+<p><code>run</code> and <code>fetch</code> locate the data directory from the current working directory
+by walking up: the first <code>.makac</code> found wins; otherwise the first <code>.git</code> found
+gets a <code>.makac</code> created beside it; if neither exists anywhere up to the
+filesystem root, makac errors and suggests <code>makac init &lt;path&gt;</code>. See
+<a href="#packages--the-data-directory">Packages &amp; the data directory</a> for the full rules.</p>
+<div style="break-before: page; page-break-before: always;"></div><!-- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier -->
+<!-- SPDX-License-Identifier: CC0-1.0 -->
+<h1 id="step-specification"><a class="header" href="#step-specification">Step specification</a></h1>
+<p><code>step { ... }</code> is the DSL surface for instantiating an action. It executes
+<strong>immediately</strong> when evaluated, and returns the action’s normalized result
+table. The spec is a single Lua table:</p>
+<pre><code class="language-lua">local result = step {
+    uses = "shell",        -- required: action reference
+    name = "say hi",       -- optional: human-readable name
+    with = { ... },        -- optional: action arguments, passed verbatim
+    target = some_target,  -- optional: shorthand for with.target
+}
+</code></pre>
+<h2 id="fields"><a class="header" href="#fields">Fields</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>uses</code></td><td>yes</td><td>string</td><td>The action reference: a built-in name (<code>shell</code>, <code>facts</code>) or <code>&lt;pkg&gt;:&lt;action&gt;</code> for an action from a fetched package. Must be a non-empty string.</td></tr>
+<tr><td><code>name</code></td><td>no</td><td>string</td><td>Human-readable name used in progress reporting. Defaults to the action’s registered default name (e.g. <code>"run shell command"</code> for <code>shell</code>, <code>"gather facts"</code> for <code>facts</code>), else to the <code>uses</code> string itself. An empty string behaves like an omitted name.</td></tr>
+<tr><td><code>with</code></td><td>no</td><td>table</td><td>Argument table passed to the action <strong>verbatim</strong>. Its keys are action-specific (see <a href="#built-in-actions-1">Built-in actions</a>).</td></tr>
+<tr><td><code>target</code></td><td>no</td><td>target</td><td>Shorthand for <code>with.target</code>: the step runs against this target. Must be a real target (e.g. <code>makac.host</code> or an action’s <code>out.target</code>). Giving the target both here and in <code>with.target</code> is an error.</td></tr>
+</tbody>
+</table>
+</div>
+<p>There is no other spec surface: the workflow’s own control flow (loops,
+conditionals, functions) is the step’s “engine”, not a declarative field.</p>
+<h2 id="defaults-recap"><a class="header" href="#defaults-recap">Defaults recap</a></h2>
+<ul>
+<li><strong>No <code>name</code></strong> → the action’s registered default name, else <code>uses</code>.</li>
+<li><strong>No <code>target</code></strong> (and no <code>with.target</code>) → the host.</li>
+<li><strong>No <code>with</code></strong> → the action receives <code>nil</code> (actions must tolerate that).</li>
+</ul>
+<h2 id="return-value"><a class="header" href="#return-value">Return value</a></h2>
+<p>A step returns the action’s result table, normalized so callers can rely on
+this shape (see <a href="#built-in-actions-1">Built-in actions</a> for per-action <code>out</code> contents):</p>
+<pre><code class="language-lua">{
+    err = nil,       -- string: set iff the action failed; absent otherwise
+    changed = false, -- bool: true if the action changed system state
+    skipped = false, -- bool: true if the action was skipped
+    out = {},        -- table: action-specific return values
+}
+</code></pre>
+<h2 id="failure-handling-1"><a class="header" href="#failure-handling-1">Failure handling</a></h2>
+<p>A step fails when its action raises, or when the action’s result sets <code>err</code>.
+Either way the step aborts the workflow: makac prints a <code>failed:</code> progress line
+for the step, then raises an error naming the step and the action:</p>
+<pre><code class="language-text">step 'doom' (uses 'shell') failed: command exited with code 1: ...
+</code></pre>
+<p>There is no <code>on_error</code> / continue-on-failure field: <strong>a failed step always
+aborts the run.</strong> This is deliberate — a workflow is a Lua program, so if you
+want conditional handling of a step’s outcome, the step must <em>not</em> fail in the
+first place: use the action’s own data-as-failure options (e.g. <code>shell</code> with
+<code>with.ignore_exit_code</code>, which leaves <code>err</code> unset and returns the exit code in
+<code>out.code</code>), or inspect the result’s fields and branch in Lua.</p>
+<pre><code class="language-lua">-- 'failure as data': the step cannot fail, you decide what the code means
+local res = step {
+    uses = "shell",
+    with = {
+        cmd = { "test", "-f", "flag.txt" },
+        ignore_exit_code = true,
+    },
+}
+if res.out.code == 0 then
+    -- flag.txt exists
+end
+</code></pre>
+<h2 id="progress-reporting-1"><a class="header" href="#progress-reporting-1">Progress reporting</a></h2>
+<p>Every step reports twice on <strong>stderr</strong>: when it starts (<code>run: [&lt;target&gt;] &lt;name&gt;</code>)
+and how it ended, Ansible-style, with status and elapsed time:</p>
+<pre><code class="language-text">run: [host] say hi
+changed: [host] say hi (0.0s)
+ok: [host] gather facts (0.1s)
+skipped: [vm_mini] savevm mini-base (2.1s)
+failed: [host] doomed (0.0s)
+</code></pre>
+<p>The status is <code>ok</code> (ran, unchanged), <code>changed</code>, <code>skipped</code>, or <code>failed</code>; the
+<code>failed</code> line prints before the abort error above. Colors (green/yellow/cyan/red)
+are environment-controlled: <code>MAKAC_COLOR=never</code> (or <code>0</code>/<code>false</code>/<code>no</code>/<code>off</code>)
+disables them, <code>MAKAC_COLOR=always</code> (or <code>1</code>/<code>true</code>/<code>yes</code>/<code>on</code>) forces them on,
+<code>NO_COLOR</code> (any value) disables them, and by default they are on unless <code>TERM</code>
+is unset or <code>dumb</code>. stdout stays reserved for the workflow’s own output.</p>
+<div style="break-before: page; page-break-before: always;"></div><!-- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier -->
+<!-- SPDX-License-Identifier: CC0-1.0 -->
+<h1 id="built-in-actions-1"><a class="header" href="#built-in-actions-1">Built-in actions</a></h1>
+<p>makac ships two built-in actions. They are identified by a <code>uses</code> name without
+any <code>:</code> — anything with a colon is a package action (<code>&lt;pkg&gt;:&lt;action&gt;</code>, see
+<a href="#packages--the-data-directory">Packages &amp; the data directory</a>).</p>
+<p>Both actions return the normalized result shape described in the
+<a href="#actions">Concepts</a> chapter; this page documents the
+action-specific inputs (<code>with</code>) and outputs (<code>out</code>).</p>
+<h2 id="the-result-shape-recap"><a class="header" href="#the-result-shape-recap">The result shape (recap)</a></h2>
+<pre><code class="language-lua">{
+    err = nil,       -- string, set iff the action failed; absent otherwise
+    changed = false, -- bool
+    skipped = false, -- bool
+    out = {},        -- table: action-specific values
+}
+</code></pre>
+<h2 id="shell"><a class="header" href="#shell"><code>shell</code></a></h2>
+<p>Runs a command on the host by default, or on a target when one is given. The
+command is executed directly — no shell interpretation on the host — and its
+output is captured as two separate streams.</p>
+<h3 id="inputs-with"><a class="header" href="#inputs-with">Inputs (<code>with</code>)</a></h3>
+<pre><code class="language-lua">with = {
+    -- required: the command as a list of words (program followed by args)
+    cmd = { "cat", "/etc/resolv.conf" },
+
+    -- optional: working directory. Host default: the directory makac was
+    -- invoked from. Remote default: the account's home directory.
+    chdir = "/tmp",
+
+    -- optional: shell used to run the command on a REMOTE target;
+    -- defaults to /bin/sh (see the note below). No effect on the host.
+    shell = "/bin/sh",
+
+    -- optional: additional environment variables, set on top of the target's
+    -- normal environment for the duration of the command
+    env = { THING = "true" },
+
+    -- optional: data written to the command's stdin (non-interactive)
+    stdin = "input data",
+
+    -- optional, bool: merge stderr into stdout (the shell's `2&gt;&amp;1`),
+    -- preserving true interleaved order; `out.stderr` then comes back empty.
+    -- On remote targets this appends `2&gt;&amp;1` to the remote command line.
+    join = false,
+
+    -- optional, number (seconds): kill the command when it overruns
+    -- (SIGTERM, a short grace, then SIGKILL); `out.timed_out` is set.
+    -- Host only for now (not supported on remote targets).
+    timeout_s = 30,
+
+    -- optional, function(line, stream): called with each COMPLETE line as it
+    -- arrives (stream is "stdout"/"stderr"); the full capture is still
+    -- returned. A raising callback aborts the command and fails the step.
+    -- Host only for now. Typical use: progress, e.g.
+    --   io.stderr:write(line, "\n")
+    on_line = nil,
+
+    -- optional, bool: whether to avoid raising on a non-zero exit code.
+    -- false by default: a non-zero exit sets `err` and fails the step.
+    ignore_exit_code = false,
+}
+</code></pre>
+<h3 id="outputs-out"><a class="header" href="#outputs-out">Outputs (<code>out</code>)</a></h3>
+<pre><code class="language-lua">out = {
+    -- string: stdout, captured separately from stderr
+    stdout = "",
+    -- string: stderr
+    stderr = "",
+    -- string: stdout then stderr joined, for when a single string is more
+    -- convenient (joining is lossy and optional; with join=true the stdout
+    -- field itself holds the true interleaving)
+    output = "",
+    -- integer: the program's exit code
+    code = 0,
+    -- bool: true iff the command was killed by timeout_s
+    timed_out = false,
+}
+</code></pre>
+<p><code>changed</code> is always <code>true</code> for a shell command (a conservative assumption).</p>
+<h3 id="the-shell-argument"><a class="header" href="#the-shell-argument">The <code>shell</code> argument</a></h3>
+<p><code>shell</code> selects the shell used to run the command on a remote target. It
+defaults to <code>/bin/sh</code>.</p>
+<p>The argument exists because, over SSH, a command executes under the remote
+user’s <em>login</em> shell — which is arbitrary (fish, zsh, …) and need not be POSIX.
+Setting environment variables relies on POSIX assignment syntax
+(<code>NAME=value command ...</code>), which non-POSIX shells do not share. Rather than
+depend on that, makac always invokes <code>shell</code> explicitly:</p>
+<pre><code class="language-text">shell -c "&lt;env assignments&gt; &lt;argv&gt;"
+</code></pre>
+<p>so the assignments are interpreted by a shell makac chose, deterministically
+and independent of whatever the login shell happens to be.</p>
+<p>On the host there is no login shell in the way — the command is spawned
+directly with the environment passed as a separate vector — so <code>shell</code> has no
+effect locally.</p>
+<h3 id="errors"><a class="header" href="#errors">Errors</a></h3>
+<ul>
+<li>A command that cannot be executed at all (program not found, target
+unreachable) raises — the step fails.</li>
+<li>A non-zero exit code is <strong>data</strong>: it is returned in <code>out.code</code> and, unless
+<code>ignore_exit_code</code> is set, also reported as <code>err</code> (which fails the step).</li>
+</ul>
+<h2 id="facts-1"><a class="header" href="#facts-1"><code>facts</code></a></h2>
+<p>Gathers host information via <strong>fact finders</strong> — small Lua functions that run
+commands on a target and return a table. Unlike Ansible, facts are gathered
+exactly when a <code>facts</code> step runs; there is no automatic pre-phase.</p>
+<h3 id="inputs-with-1"><a class="header" href="#inputs-with-1">Inputs (<code>with</code>)</a></h3>
+<pre><code class="language-lua">with = {
+    -- required: map namespace -&gt; fact finder
+    finders = {
+        os  = "os",   -- a built-in finder by name
+        env = "env",  -- another built-in
+        -- or a function: a custom/imported finder
+        -- custom = function(target) return { ... } end
+    },
+
+    -- optional: the target to gather from. Omitted: the host.
+    -- target = vm,
+}
+</code></pre>
+<p>A finder value is either a <strong>string</strong> naming a built-in finder or a
+<strong>function</strong>. A finder runs on the given target and must return a table; a
+finder that errors, or returns a non-table, fails the step.</p>
+<h3 id="outputs-out-1"><a class="header" href="#outputs-out-1">Outputs (<code>out</code>)</a></h3>
+<pre><code class="language-lua">out = {
+    -- each namespace becomes a table of the finder's return values
+    facts = {
+        os  = { os = "linux", arch = "x86_64" },  -- from the 'os' finder
+        env = { PATH = "...", HOME = "...", ... }, -- from the 'env' finder
+    },
+}
+</code></pre>
+<p><code>changed</code> is always <code>false</code> (gathering facts changes nothing).</p>
+<h3 id="built-in-finders-1"><a class="header" href="#built-in-finders-1">Built-in finders</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Finder</th><th>What it returns</th></tr>
+</thead>
+<tbody>
+<tr><td><code>os</code></td><td><code>{ os = &lt;string&gt;, arch = &lt;string&gt; }</code> from <code>uname -s</code> / <code>uname -m</code> on the target.</td></tr>
+<tr><td><code>env</code></td><td>The target’s environment as a <code>NAME -&gt; value</code> table (from <code>env</code>).</td></tr>
+</tbody>
+</table>
+</div>
+<p>See the <a href="#facts">Concepts: Facts</a> page for examples of using
+facts in a workflow.</p>
+<div style="break-before: page; page-break-before: always;"></div><!-- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier -->
+<!-- SPDX-License-Identifier: CC0-1.0 -->
+<h1 id="targets-1"><a class="header" href="#targets-1">Targets</a></h1>
+<p>A <strong>target</strong> is “somewhere I can run commands and read/write files”. It is the
+single abstraction through which actions touch a machine other than the one
+makac runs on. The <a href="#targets">Concepts: Targets</a> page explains the
+model; this page is the precise API surface.</p>
+<h2 id="kinds-1"><a class="header" href="#kinds-1">Kinds</a></h2>
+<ul>
+<li><strong>host</strong> — the machine makac itself runs on. Always available as <code>makac.host</code>;
+used whenever a step/action does not name a target.</li>
+<li><strong>remote</strong> — a machine reached over SSH, typically produced by an action
+(e.g. a VM-starting action returns its VM as <code>out.target</code>).</li>
+</ul>
+<p>The kinds are fixed; actions produce targets of existing kinds, never new ones.</p>
+<h2 id="checking-a-value-is-a-target"><a class="header" href="#checking-a-value-is-a-target">Checking a value is a target</a></h2>
+<p><code>makac.is_target(v)</code> returns true for any target — a table with <code>kind</code> <code>"host"</code>
+or <code>"remote"</code> and <code>run</code>/<code>put</code>/<code>get</code>/<code>close</code> methods.</p>
+<h2 id="the-operations"><a class="header" href="#the-operations">The operations</a></h2>
+<p>Every target provides <code>run</code>, <code>put</code>, <code>get</code>, and <code>close</code> as methods.</p>
+<h3 id="runargv-opts--execute-a-command"><a class="header" href="#runargv-opts--execute-a-command"><code>run(argv, opts)</code> — execute a command</a></h3>
+<pre><code class="language-lua">local res = target:run({ "cat", "/etc/resolv.conf" }, {
+    chdir = "/tmp",         -- optional working directory
+    env = { FOO = "bar" },  -- optional extra env, on top of the target's
+    stdin = "data",         -- optional non-interactive stdin
+    shell = "/bin/sh",      -- remote targets only: see the shell action's
+                            -- `shell` argument (actions.md); defaults /bin/sh
+    join = false,           -- optional: merge stderr into stdout (remote:
+                            -- appends 2&gt;&amp;1 to the remote command line)
+    -- timeout_s and on_line are host-only (unused on remote targets)
+})
+</code></pre>
+<ul>
+<li><code>argv</code> is an array of strings: the program followed by its arguments. <code>argv[1]</code>
+must be a non-empty string; every element must be a string.</li>
+<li>Returns <code>{ code = int, stdout = string, stderr = string }</code>. (Host runs also
+surface <code>timed_out</code>; see <code>makac.exec</code> in <a href="#lua-standard-library">Lua standard library</a>.)</li>
+<li>A <strong>non-zero exit code is data, not an error</strong> — it is returned in <code>code</code>. A
+<em>failed</em> <code>run</code> (target unreachable, program could not be started) raises.</li>
+<li>On a remote target, when <code>shell</code> or <code>env</code> is given, the command is wrapped as
+<code>shell -c "&lt;env assignments&gt; &lt;quoted argv&gt;"</code> and quoted again for the login
+shell; a <code>chdir</code> becomes <code>cd &lt;dir&gt; &amp;&amp; &lt;command&gt;</code> (absent <code>chdir</code> defaults to
+the account’s home directory, where ssh runs commands anyway).</li>
+<li><code>timeout_s</code> and <code>on_line</code> are <strong>not supported on remote targets</strong> — passing
+them raises (for now).</li>
+<li>On a host target, <code>run</code> is exactly <code>makac.exec</code> (see the stdlib page): no
+shell involved, environment passed as a separate vector, <code>chdir</code> inherited
+from makac’s own cwd when omitted.</li>
+</ul>
+<h3 id="putsrc-dst--upload-to-the-target"><a class="header" href="#putsrc-dst--upload-to-the-target"><code>put(src, dst)</code> — upload to the target</a></h3>
+<pre><code class="language-lua">target:put("/host/path/or/dir", "relative/or/absolute/on/target")
+</code></pre>
+<p>Uploads a file or directory from the host onto the target. When <code>src</code> is a
+directory, the transfer is recursive. A relative <code>dst</code> resolves against the
+account’s home directory (what <code>scp</code> does). Failure (missing src, transfer
+error) raises.</p>
+<h3 id="getsrc-dst--download-from-the-target"><a class="header" href="#getsrc-dst--download-from-the-target"><code>get(src, dst)</code> — download from the target</a></h3>
+<pre><code class="language-lua">target:get("/path/on/target", "/host/path")
+</code></pre>
+<p>Downloads a file or directory from the target to the host. Recursive for
+directories; relative <code>src</code> resolves against the account’s home directory.
+Failure raises.</p>
+<h3 id="close--free-the-target"><a class="header" href="#close--free-the-target"><code>close()</code> — free the target</a></h3>
+<pre><code class="language-lua">target:close()
+</code></pre>
+<ul>
+<li><strong>Idempotent</strong>: closing an already-closed target succeeds and does nothing.</li>
+<li>Frees the target’s resources and tears down any session it held open (e.g.
+an SSH control master).</li>
+<li>After closing, <code>run</code>, <code>put</code> and <code>get</code> on the target <strong>fail</strong>.</li>
+<li>The runner closes every target when the workflow finishes — even on failure —
+so workflows rarely call this. An action may close a target early (e.g. an
+action that stops a VM closes the VM’s target; later steps using it fail).</li>
+</ul>
+<h2 id="session-reuse-1"><a class="header" href="#session-reuse-1">Session reuse</a></h2>
+<p>A target stays usable across the steps that name it. Reaching a remote target
+authenticates <strong>once</strong>; subsequent commands and file transfers multiplex over
+that session rather than re-establishing it. Any working state a target needs
+lives under the data directory (<code>&lt;data_dir&gt;/targets/&lt;name&gt;/</code>), separate per
+target, so targets never interfere.</p>
+<h2 id="obtaining-a-target-1"><a class="header" href="#obtaining-a-target-1">Obtaining a target</a></h2>
+<ul>
+<li>The <strong>host</strong> is always available: <code>makac.host</code>.</li>
+<li>A <strong>remote</strong> target usually comes from an action result:</li>
+</ul>
+<pre><code class="language-lua">local res = step {
+    uses = "qemu:vm",
+    with = { state = "started" },
+}
+local vm = res.out.target
+</code></pre>
+<ul>
+<li>A workflow (or package) can construct targets itself:</li>
+</ul>
+<pre><code class="language-lua">-- an SSH-backed remote target (auth once, reused by later operations)
+local t = makac.new_ssh_target("vm1", {
+    host = "10.0.0.5",
+    user = "root",
+    -- port = 22,                 -- optional
+    -- options = { IdentityFile = "..." },  -- optional extra ssh options
+})
+
+-- a target from a plain spec (makac wraps it with the lifecycle rules:
+-- idempotent close, closed-target checks, method calling convention)
+local t2 = makac.new_target {
+    kind = "remote",
+    name = "custom",
+    run = function(argv, opts)
+        return { code = 0, stdout = "", stderr = "" }
+    end,
+    put = function(src, dst) end,  -- optional; errors "not supported" if absent
+    get = function(src, dst) end,  -- optional; same
+    close = function() end,        -- optional teardown
+}
+
+-- advanced: a target from ops functions, used by package authors who need
+-- the full lifecycle wrapper (kind/name must match make_target's contract)
+local t3 = makac.make_target("remote", "name", {
+    run = function(self, argv, opts) ... end,
+    put = function(self, src, dst) ... end,
+    get = function(self, src, dst) ... end,
+    close = function(self) ... end,   -- optional
+})
+</code></pre>
+<p><code>makac.resolve_target(with)</code> resolves a step/action’s <code>with</code> table to the
+target it runs against: <code>with.target</code> when given (must be a real target), else
+the host.</p>
+<h2 id="relationship-to-steps-1"><a class="header" href="#relationship-to-steps-1">Relationship to steps</a></h2>
+<ul>
+<li>The <code>shell</code> action runs on <code>with.target</code> when one is given, else the host.</li>
+<li>Any other action may accept a target the same way; an action that documents a
+<code>target</code> parameter accepts the same values <code>shell</code> does — a real target
+object, or via the step’s <code>target</code> shorthand.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><!-- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier -->
+<!-- SPDX-License-Identifier: CC0-1.0 -->
+<h1 id="fetchers-1"><a class="header" href="#fetchers-1">Fetchers</a></h1>
+<p>A <strong>fetcher</strong> is a Lua function that knows how to bring a package into the
+project. Every entry in <code>.makac/packages.lua</code> names a fetcher (its <code>fetcher</code>
+key) and passes it arguments (its <code>with</code> table). Fetching happens only when you
+run <code>makac fetch</code> — never automatically during <code>makac run</code>.</p>
+<p>The <a href="#packages--the-data-directory">Concepts: Packages &amp; the data directory</a> page
+explains the package model; this page is the precise fetcher reference.</p>
+<h2 id="the-fetcher-contract"><a class="header" href="#the-fetcher-contract">The fetcher contract</a></h2>
+<p>A fetcher is a function <code>fn(spec, dest_dir)</code>:</p>
+<ul>
+<li><code>spec</code> is the <strong>full</strong> entry table from <code>packages.lua</code> (so the fetcher’s
+arguments live under <code>spec.with</code>, and it can read <code>spec.id</code> for error
+messages).</li>
+<li><code>dest_dir</code> is where the package’s code must end up:
+<code>&lt;data_dir&gt;/packages/&lt;id&gt;/</code> for every fetcher except <code>filesystem</code>, which
+uses the source path in place.</li>
+</ul>
+<p>A fetcher that fails raises (or errors); <code>makac fetch</code> aborts the whole run on
+the first failure, with a message naming the package.</p>
+<p>Fetchers are registered by name. The three built-ins are always available:
+<code>fetchurl</code>, <code>fetchgit</code>, <code>filesystem</code>. Packages may contribute more (exported as
+<code>fetchers</code> in their <code>makac.lua</code>); to use a package-provided fetcher, prefix it
+with the providing package’s id: <code>mypkg:fetchcvs</code>. A fetcher name that does not
+resolve is an error naming the package and the unknown fetcher.</p>
+<h2 id="fetchurl"><a class="header" href="#fetchurl"><code>fetchurl</code></a></h2>
+<p>Fetches a package over HTTP(S), verifies the downloaded bytes against a SHA256
+hash, and unpacks it:</p>
+<pre><code class="language-lua">{
+    id = "somepkg",
+    fetcher = "fetchurl",
+    with = {
+        -- required: URL to fetch (http/https; anything curl can GET)
+        url = "https://example.com/some-file.tgz",
+
+        -- required: 64 lowercase hex chars; the fetched bytes are ALWAYS
+        -- verified against this — a mismatch is a hard error
+        sha256 = "0123...",
+
+        -- required: how to unpack. Either the string "tar" (extract with the
+        -- system tar into dest), or a custom function(args, dst_dir) that
+        -- receives the downloaded file's path as args.archive
+        unpacker = "tar",
+    },
+}
+</code></pre>
+<p>The download is cached under the data directory (<code>&lt;data_dir&gt;/cache</code>), keyed by
+the URL: re-fetching the same URL is served from cache (and re-verified when a
+checksum is given — a corrupt entry is dropped and re-fetched).</p>
+<h2 id="fetchgit"><a class="header" href="#fetchgit"><code>fetchgit</code></a></h2>
+<p>Fetches a package from a Git repository:</p>
+<pre><code class="language-lua">{
+    id = "somepkg",
+    fetcher = "fetchgit",
+    with = {
+        -- required: git URL to clone
+        url = "https://github.com/user/some-repo.git",
+
+        -- optional: commit hash, tag, or branch to check out.
+        -- Omitted: the repository's default branch.
+        rev = "v1.2.0",
+    },
+}
+</code></pre>
+<p>The clone <strong>keeps its <code>.git</code> directory</strong>, so <code>makac fetch</code> is re-runnable: a
+later fetch into an existing work tree fetches and re-checks-out instead of
+re-cloning. Git environment variables from the caller’s environment
+(<code>GIT_INDEX_FILE</code>, <code>GIT_DIR</code>, <code>GIT_WORK_TREE</code>, <code>GIT_OBJECT_DIRECTORY</code>) are
+scrubbed from the subprocesses. A non-zero git exit is a fetch failure and
+aborts the run.</p>
+<h2 id="filesystem"><a class="header" href="#filesystem"><code>filesystem</code></a></h2>
+<p>Uses a package from the local filesystem <strong>in place</strong> — nothing is copied,
+<code>dest</code> is unused. This is the development fetcher: edit the package, re-run
+<code>makac run</code>, and your edits are live.</p>
+<pre><code class="language-lua">{
+    id = "mypkg.dev",
+    fetcher = "filesystem",
+    with = {
+        -- required: path to the package's directory (must contain a
+        -- makac.lua at its root). Relative paths resolve against the
+        -- project root (the directory holding the .makac data dir), so
+        -- workflows work from any subdirectory. Absolute paths work too.
+        path = "path/to/package",
+    },
+}
+</code></pre>
+<p>“Fetching” only validates: the path must be an existing directory with a
+<code>makac.lua</code> at its root — a typo’d path is caught by <code>makac fetch</code>, not later
+at run time. Loading reads from the path itself.</p>
+<h2 id="fetching-order-and-chaining"><a class="header" href="#fetching-order-and-chaining">Fetching order and chaining</a></h2>
+<p>Entries in <code>packages.lua</code> are fetched in <strong>file order</strong>. The list is
+authoritative: an earlier package may provide a fetcher that a later entry
+uses (e.g. <code>mypkg:fetchcvs</code>). The built-in registry is prepopulated with
+<code>fetchurl</code>/<code>fetchgit</code>/<code>filesystem</code>; an unknown fetcher name is an error naming
+the package and the fetcher.</p>
+<blockquote>
+<p><strong>Note:</strong> fetcher <em>chaining within a single fetch run</em> — a package fetched
+during <code>makac fetch</code> becoming usable as the fetcher for a <em>later</em> entry in
+that same run — is not implemented yet. Packages are loaded (and their
+fetchers registered) during <code>makac run</code>, so a package-provided fetcher is
+available to fetch <em>other</em> packages on a subsequent <code>makac fetch</code> run.</p>
+</blockquote>
+<h2 id="where-fetched-code-lives"><a class="header" href="#where-fetched-code-lives">Where fetched code lives</a></h2>
+<p>Every fetcher except <code>filesystem</code> puts the package’s code at
+<code>&lt;data_dir&gt;/packages/&lt;id&gt;/</code>. A listed-but-not-fetched package is a run-time
+error at <code>makac run</code>, telling you to run <code>makac fetch</code> first. A <code>filesystem</code>
+package’s code root is its <code>with.path</code> itself.</p>
+<div style="break-before: page; page-break-before: always;"></div><!-- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier -->
+<!-- SPDX-License-Identifier: CC0-1.0 -->
+<h1 id="lua-standard-library"><a class="header" href="#lua-standard-library">Lua standard library</a></h1>
+<p>Workflows are evaluated in a Lua 5.4 VM. Everything in the Lua 5.4 standard
+library is available, plus the DSL surface (<code>step</code>, package registries) and the
+<code>makac.*</code> primitives documented here. These primitives are split into two
+groups: those baked into the VM (implemented in Odin) and those defined by the
+embedded Lua prelude (which build on the Odin ones).</p>
+<p>The prelude is evaluated once, before any user-facing Lua, so every workflow
+sees everything below. <code>makac</code> may already hold Odin-side primitives before the
+prelude runs; the prelude only extends it.</p>
+<h2 id="the-workflow-dsl-prelude-defined"><a class="header" href="#the-workflow-dsl-prelude-defined">The workflow DSL (prelude-defined)</a></h2>
+<h3 id="step---"><a class="header" href="#step---"><code>step { ... }</code></a></h3>
+<p>Instantiates an action and runs it immediately. Full spec in
+<a href="#step-specification">Step specification</a>.</p>
+<h3 id="targets-2"><a class="header" href="#targets-2">Targets</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Primitive</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>makac.host</code></td><td>The host target (machine makac runs on). Always available.</td></tr>
+<tr><td><code>makac.is_target(v)</code></td><td>Returns true if <code>v</code> is a target (table with <code>kind</code> <code>"host"</code>/<code>"remote"</code> and <code>run</code>/<code>put</code>/<code>get</code>/<code>close</code> methods).</td></tr>
+<tr><td><code>makac.resolve_target(with)</code></td><td>Resolves a <code>with</code> table to the target it runs against: <code>with.target</code> when given, else <code>makac.host</code>.</td></tr>
+<tr><td><code>makac.make_target(kind, name, ops)</code></td><td>Constructs a target from ops functions <code>{ run(self, argv, opts), put(self, src, dst), get(self, src, dst), close(self) }</code>, wrapping them with the lifecycle rules (idempotent close, closed-target checks). Kinds are fixed: <code>"host"</code>/<code>"remote"</code>.</td></tr>
+<tr><td><code>makac.new_target(spec)</code></td><td>Constructs a target from a plain spec <code>{ kind, name, run(argv, opts) -&gt; {code, stdout, stderr}, put?, get?, close? }</code>; missing <code>put</code>/<code>get</code> raise “not supported”.</td></tr>
+<tr><td><code>makac.new_ssh_target(name, spec)</code></td><td>An SSH-backed remote target: <code>{ host, user, port?, options? }</code>. Auth happens once; later ops multiplex.</td></tr>
+<tr><td><code>makac.close_all_targets()</code></td><td>Closes every live target (reverse order, best-effort). Called by <code>makac run</code> after the workflow, even on failure.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Target operations (<code>run</code>/<code>put</code>/<code>get</code>/<code>close</code>) are documented on the
+<a href="#targets-1">Targets</a> reference page.</p>
+<h3 id="registries-for-packageaction-authors"><a class="header" href="#registries-for-packageaction-authors">Registries (for package/action authors)</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Primitive</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>makac.define_action(name, fn, opts)</code></td><td>Registers action <code>name</code>; <code>fn(with)</code> returns a result table (normalized by <code>run_action</code>). <code>opts.default_name</code> is used by <code>step</code> when a step omits <code>name</code>. Redefining an action is an error.</td></tr>
+<tr><td><code>makac.run_action(uses, with)</code></td><td>Resolves <code>uses</code> in the registry, invokes it with <code>with</code>, normalizes and returns the result. Unknown actions raise; a raising action is wrapped with an error naming the action.</td></tr>
+<tr><td><code>makac.normalize_result(res)</code></td><td>Fills in the result defaults: <code>changed=false</code>, <code>skipped=false</code>, <code>out={}</code>. <code>err</code> is left as-is (absent unless set).</td></tr>
+<tr><td><code>makac.register_fetcher(name, fn)</code></td><td>Registers a fetcher for <code>packages.lua</code> entries (see <a href="#fetchers-1">Fetchers</a>).</td></tr>
+<tr><td><code>makac.register_fact_finder(name, fn)</code></td><td>Registers a fact finder for the <code>facts</code> action (see <a href="#built-in-actions-1">Built-in actions</a>).</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="package-loading-used-by-the-cli-usable-in-workflows"><a class="header" href="#package-loading-used-by-the-cli-usable-in-workflows">Package loading (used by the CLI, usable in workflows)</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Primitive</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>makac.data_dir</code></td><td>The VM’s data directory (may be the empty string for a data-dir-less VM).</td></tr>
+<tr><td><code>makac.pkg_dirs</code></td><td>Maps each loaded package id to its code root on disk.</td></tr>
+<tr><td><code>makac.read_package_defs(data_dir?)</code></td><td>Reads and validates <code>&lt;data_dir&gt;/packages.lua</code>, returning an array of entry tables.</td></tr>
+<tr><td><code>makac.resolve_fetcher(def)</code></td><td>Resolves an entry’s <code>fetcher</code> to its function (string name → registry lookup; a function is used as-is).</td></tr>
+<tr><td><code>makac.resolve_pkg_dir(def, data_dir?)</code></td><td>Where an entry’s code lives: <code>&lt;data_dir&gt;/packages/&lt;id&gt;/</code>, or <code>with.path</code> for a <code>filesystem</code> package.</td></tr>
+<tr><td><code>makac.fetch_all(data_dir?)</code></td><td>Fetches every listed package in file order into <code>&lt;data_dir&gt;/packages/&lt;id&gt;/</code>.</td></tr>
+<tr><td><code>makac.load_packages(data_dir?)</code></td><td>Loads every listed package’s <code>makac.lua</code> into the registries under <code>&lt;id&gt;:&lt;name&gt;</code>; sets <code>pkg_dirs</code> before each loads. No <code>packages.lua</code> → returns 0.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Package-provided <code>lib/</code> code is require-able as <code>require("pkgs:&lt;id&gt;/a/b")</code> via a
+searcher the prelude installs (maps to <code>&lt;package root&gt;/lib/a/b.lua</code>).</p>
+<h2 id="odin-side-primitives-vm-baked"><a class="header" href="#odin-side-primitives-vm-baked">Odin-side primitives (VM-baked)</a></h2>
+<p>These are C closures registered into <code>makac</code> before the prelude runs.</p>
+<h3 id="makacexecargv-opts"><a class="header" href="#makacexecargv-opts"><code>makac.exec(argv, opts?)</code></a></h3>
+<p>Run a command directly (no shell), capturing stdout and stderr separately.</p>
+<pre><code class="language-lua">local res = makac.exec({ "git", "rev-parse", "HEAD" }, {
+    chdir = "/tmp",          -- optional working directory
+    env = { FOO = "bar" },   -- optional extra env, merged on top of makac's
+    stdin = "data",          -- optional non-interactive stdin
+    join = false,            -- optional: merge stderr into stdout (2&gt;&amp;1)
+    timeout_s = 30,          -- optional: kill on overrun (host only)
+    on_line = nil,           -- optional: function(line, stream), streamed
+})
+</code></pre>
+<ul>
+<li><code>argv</code> must be a non-empty array of strings.</li>
+<li>Returns <code>{ code = int, stdout = string, stderr = string, timed_out = bool }</code>.
+<code>timed_out</code> is true iff <code>timeout_s</code> killed the command.</li>
+<li>A <strong>non-zero exit code is data, not an error</strong> — only a failure to spawn the
+program raises.</li>
+<li>With <code>join=true</code>, stderr shares stdout’s descriptor: <code>res.stdout</code> holds the
+true interleaving and <code>res.stderr</code> comes back empty.</li>
+<li><code>on_line(line, stream)</code> is called with each complete line as it arrives
+(<code>stream</code> is <code>"stdout"</code>/<code>"stderr"</code>, always <code>"stdout"</code> when joined); a
+raising callback aborts the command and raises.</li>
+<li><code>timeout_s</code> on a remote-target <code>run</code> is not supported (raises); on the host
+it is supported.</li>
+</ul>
+<h3 id="makacfs--file-system"><a class="header" href="#makacfs--file-system"><code>makac.fs.*</code> — file system</a></h3>
+<p>All under the <code>makac.fs</code> table.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Primitive</th><th>Returns / behavior</th></tr>
+</thead>
+<tbody>
+<tr><td><code>makac.fs.mkdir_p(path)</code></td><td>Create <code>path</code> and any missing parents. Existing dir is fine; raises on failure.</td></tr>
+<tr><td><code>makac.fs.listdir(path)</code></td><td>Array of <code>{ name = string, is_dir = bool }</code>; <code>(nil, err)</code> when the directory cannot be read (not a raise — absence is data).</td></tr>
+<tr><td><code>makac.fs.read_file(path)</code></td><td>The file contents as a string; <code>(nil, err)</code> when unreadable.</td></tr>
+<tr><td><code>makac.fs.write_file(path, data, opts?)</code></td><td>Write <code>data</code> to <code>path</code> (truncating). <code>opts.atomic = true</code> writes to a sibling temp file first, then renames over the target (0600; a concurrent reader never sees a half-written file). Raises on failure.</td></tr>
+<tr><td><code>makac.fs.stat(path)</code></td><td><code>{ type = "file"|"dir"|"socket"|"link"|"other", size = int, mtime_ns = int }</code> (lstat), or <code>nil</code> when the path does not exist.</td></tr>
+<tr><td><code>makac.fs.mktemp_dir(prefix?)</code></td><td>Create a fresh directory (mode 0700) in the system temp dir; caller removes it. Returns its path.</td></tr>
+<tr><td><code>makac.fs.mktemp_file(prefix?)</code></td><td>Create a fresh empty file in the system temp dir; returns its path for the caller to fill and remove.</td></tr>
+<tr><td><code>makac.fs.sha256(path)</code></td><td>Hex-encoded SHA256 of the file (streamed); <code>(nil, err)</code> for a missing/unreadable file.</td></tr>
+<tr><td><code>makac.fs.cwd()</code></td><td>The current working directory.</td></tr>
+<tr><td><code>makac.fs.open_dir(path)</code></td><td>A <code>Dir</code> handle with iteration/walk methods (used for recursive traversal).</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>makac.listdir(path)</code> is also registered flat (an alias of <code>makac.fs.listdir</code>).</p>
+<h3 id="makactime--time"><a class="header" href="#makactime--time"><code>makac.time.*</code> — time</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Primitive</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>makac.time.now()</code></td><td><code>CLOCK_MONOTONIC</code> in nanoseconds, as an integer.</td></tr>
+<tr><td><code>makac.time.sleep(ns)</code></td><td>Sleep for <code>ns</code> nanoseconds (resumes on <code>EINTR</code>). <code>ns</code> must be non-negative and ≤ 10 years.</td></tr>
+<tr><td><code>makac.time.ns_per_us</code> / <code>ns_per_ms</code> / <code>ns_per_s</code></td><td>Integer constants <code>1000</code> / <code>1_000_000</code> / <code>1_000_000_000</code>.</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="makacenv--environment-and-identity"><a class="header" href="#makacenv--environment-and-identity"><code>makac.env.*</code> — environment and identity</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Primitive</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>makac.env.all()</code></td><td>The whole process environment as <code>{ NAME = value, ... }</code>.</td></tr>
+<tr><td><code>makac.env.version()</code></td><td>Two integers: <code>major, minor</code> (e.g. <code>0, 3</code>). Same pair <code>--version</code> prints; capability-pinning for workflows.</td></tr>
+<tr><td><code>makac.env.makac_path()</code></td><td>Absolute, canonicalized path of the running <code>makac</code> binary (for re-invoking makac without trusting <code>$PATH</code>).</td></tr>
+</tbody>
+</table>
+</div>
+<p>There is deliberately <strong>no</strong> <code>set</code> counterpart: per-command environments belong
+to <code>makac.exec</code>’s <code>env</code> option.</p>
+<h3 id="processes"><a class="header" href="#processes">Processes</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Primitive</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>makac.pid_alive(pid)</code></td><td><code>true</code> if the process <code>pid</code> exists, <code>false</code> if not. One <code>kill(pid, 0)</code> syscall; never raises.</td></tr>
+<tr><td><code>makac.spawn(argv, opts)</code></td><td>Detach a long-lived child that outlives the run (stdio goes to <strong>files</strong>, never pipes; stdin is <code>/dev/null</code>). <code>opts = { stdout = &lt;path&gt;, stderr = &lt;path&gt;, chdir?, env? }</code> — <code>stdout</code>/<code>stderr</code> required. Returns a <code>proc</code> object: <code>proc.pid</code> (integer) and <code>proc:status()</code> → <code>"running"</code> or <code>{ code = int }</code> (waitpid <code>WNOHANG</code>; reaps once exited, then reports the cached result). There is no <code>:kill</code> and the object never kills on GC.</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="downloads"><a class="header" href="#downloads">Downloads</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Primitive</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>makac.fetch(url, sha256?)</code></td><td>Download <code>url</code> over HTTP(S) into a cache keyed by the URL, optionally verifying <code>sha256</code>; returns the on-disk cached path. Raises on failure (network, HTTP error, checksum mismatch). Cache: <code>&lt;data_dir&gt;/cache</code>.</td></tr>
+<tr><td><code>makac.download(url, sha256?, cache_dir?)</code></td><td>Same as <code>makac.fetch</code>, with an optional explicit cache-directory override.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Both raise on failure (e.g. <code>"checksum mismatch"</code>); a second fetch of the same
+URL is served from cache (re-verified when a checksum is given — a corrupt
+entry is dropped and re-fetched).</p>
+<h3 id="makacjson"><a class="header" href="#makacjson"><code>makac.json.*</code></a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Primitive</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>makac.json.dumps(value)</code></td><td>Serialize a Lua value to a JSON string. Raises on unencodable values.</td></tr>
+<tr><td><code>makac.json.loads(string)</code></td><td>Parse a JSON string into a Lua value.</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="miscellaneous"><a class="header" href="#miscellaneous">Miscellaneous</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Primitive</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>makac.random_hex(n)</code></td><td><code>n</code> random lowercase hex chars (n must be positive).</td></tr>
+<tr><td><code>makac.ssh_open(name, spec)</code></td><td>Low-level SSH session: <code>{ host, user, port?, options? }</code> → session with <code>run</code>/<code>put</code>/<code>get</code>/<code>close</code> methods and <code>name</code>/<code>port</code> fields. Backs <code>makac.new_ssh_target</code>; state (including the generated ssh config with <code>ControlMaster</code>/<code>ControlPath</code>/<code>ControlPersist</code>) lives under <code>&lt;data_dir&gt;/targets/&lt;name&gt;/</code>.</td></tr>
+<tr><td><code>makac.qmp_open(...)</code></td><td>QEMU Machine Protocol client (used by the QEMU package; plain tables on the Lua side — the JSON wire format is never part of the surface).</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="the-full-register-order-for-reference"><a class="header" href="#the-full-register-order-for-reference">The full register order (for reference)</a></h2>
+<p>The VM registers, in order: QMP, time, json, fs, env, process (<code>pid_alive</code>),
+spawn, random, then the embedded prelude, then exposes <code>makac.data_dir</code>. The
+prelude defines <code>step</code>, the built-in actions (<code>shell</code>, <code>facts</code>), the fact
+finders (<code>os</code>, <code>env</code>), the target wrappers, the fetchers (<code>fetchurl</code>,
+<code>fetchgit</code>, <code>filesystem</code>), the package loader, and the <code>pkgs:</code> searcher.</p>
+<div style="break-before: page; page-break-before: always;"></div><!-- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier -->
+<!-- SPDX-License-Identifier: CC0-1.0 -->
+<h1 id="examples"><a class="header" href="#examples">Examples</a></h1>
+<p>This chapter shows makac in action. The examples are written to be readable —
+and, where noted, runnable — with a real installation:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Example</th><th>Shows</th></tr>
+</thead>
+<tbody>
+<tr><td><a href="#a-simple-workflow">A simple workflow</a></td><td>A minimal runnable workflow: project init, shell steps, facts, and result handling. No packages required.</td></tr>
+<tr><td><a href="#qemu--nvme-boot-snapshot-hotplug-test">QEMU + NVMe: boot, snapshot, hotplug, test</a></td><td>The headline demo: build an image, boot a VM, snapshot it, resume from the snapshot in seconds, hotplug an NVMe controller via QMP while the guest runs, and assert its shape.</td></tr>
+</tbody>
+</table>
+</div>
+<p>The QEMU example uses the <a href="#the-makac-qemu-package">makac QEMU package</a>, a separate
+project that is linked from this book but documented on its own.</p>
+<p>All snippets follow the conventions from the <a href="#reference">Reference</a>
+chapter. Remember that a workflow is plain Lua: the <code>step {}</code> calls below could
+be wrapped in loops, conditionals, or functions of your own — the examples keep
+it linear for clarity.</p>
+<div style="break-before: page; page-break-before: always;"></div><!-- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier -->
+<!-- SPDX-License-Identifier: CC0-1.0 -->
+<h1 id="a-simple-workflow"><a class="header" href="#a-simple-workflow">A simple workflow</a></h1>
+<p>This example is a complete, runnable workflow that needs nothing but makac
+itself — no packages. It walks through the shape of a typical run: gather some
+facts, do some work with shell steps, and react to the results.</p>
+<h2 id="setting-up-a-project"><a class="header" href="#setting-up-a-project">Setting up a project</a></h2>
+<p>makac stores its project state in a data directory (<code>.makac</code>). Initialize one
+anywhere:</p>
+<pre><code class="language-bash">$ mkdir demo &amp;&amp; cd demo
+$ makac init .
+makac: initialized data directory at demo
+</code></pre>
+<p>(You can also just start writing workflows — makac finds the data directory by
+walking up from the current directory, creating <code>.makac</code> at the first <code>.git</code> it
+finds. See <a href="#packages--the-data-directory">Packages &amp; the data directory</a>.)</p>
+<h2 id="the-workflow"><a class="header" href="#the-workflow">The workflow</a></h2>
+<p>Save this as <code>hello.lua</code>:</p>
+<pre><code class="language-lua">-- hello.lua — a first makac workflow
+--
+-- Steps run immediately, in order, from top to bottom. Because this is plain
+-- Lua, the whole file is just a program: you can loop, branch, and factor
+-- steps into functions.
+
+-- 1. Gather facts about the host makac runs on. We pick exactly the finders
+--    we want; nothing is gathered automatically (see the Facts concept page).
+local facts = step {
+    name = "gather host facts",
+    uses = "facts",
+    with = {
+        finders = {
+            os  = "os",   -- built-in: uname -s / uname -m
+            env = "env",  -- built-in: the target's environment
+        },
+    },
+}
+
+-- Facts are plain data; branch on them like any Lua table.
+local os_name = facts.out.facts.os.os
+local arch    = facts.out.facts.os.arch
+print(("host: %s/%s"):format(os_name, arch))
+
+-- 2. A shell step. The command is a list of words, executed directly (no
+--    shell interpretation on the host); stdout and stderr come back captured.
+local whoami = step {
+    name = "who are we",
+    uses = "shell",
+    with = {
+        cmd = { "whoami" },
+    },
+}
+print("running as: " .. whoami.out.stdout:gsub("%s+$", ""))
+
+-- 3. A step whose exit code we treat as data. By default a non-zero exit
+--    fails the step (and aborts the workflow); `ignore_exit_code = true`
+--    hands the decision to us instead.
+local exists = step {
+    name = "check marker file",
+    uses = "shell",
+    with = {
+        cmd = { "test", "-f", "marker.txt" },
+        ignore_exit_code = true,
+    },
+}
+
+if exists.out.code == 0 then
+    print("marker.txt exists")
+else
+    -- 4. The workflow decides to do something about it: create the file.
+    local made = step {
+        name = "create marker",
+        uses = "shell",
+        with = {
+            cmd = { "sh", "-c", "echo created by makac &gt; marker.txt" },
+        },
+    }
+    print(("created marker (changed=%s)"):format(tostring(made.changed)))
+end
+
+-- 5. Use facts to make a decision about *where* to run something.
+if arch == "x86_64" then
+    step {
+        name = "arch-specific check",
+        uses = "shell",
+        with = { cmd = { "uname", "-m" } },
+    }
+end
+
+print("all done")
+</code></pre>
+<h2 id="running-it"><a class="header" href="#running-it">Running it</a></h2>
+<pre><code class="language-bash">$ makac run hello.lua
+run: [host] gather host facts
+ok: [host] gather host facts (0.0s)
+host: linux/x86_64
+run: [host] who are we
+changed: [host] who are we (0.0s)
+running as: nixos
+run: [host] check marker file
+ok: [host] check marker file (0.0s)
+marker.txt exists
+all done
+</code></pre>
+<p>The <code>run:</code>/<code>ok:</code>/<code>changed:</code> lines are makac’s step progress report, on stderr;
+everything else is the workflow’s own output on stdout. Note the second run —
+with <code>marker.txt</code> present, the workflow simply takes the other branch:</p>
+<pre><code class="language-bash">$ makac run hello.lua
+run: [host] gather host facts
+ok: [host] gather host facts (0.0s)
+host: linux/x86_64
+run: [host] who are we
+ok: [host] who are we (0.0s)
+running as: nixos
+run: [host] check marker file
+ok: [host] check marker file (0.0s)
+marker.txt exists
+all done
+</code></pre>
+<p>A workflow is re-runnable: steps are just Lua, so the same file expresses
+“ensure this state” naturally — exactly the Ansible-style <em>declarative</em> flavor
+makac aims for, without leaving Lua.</p>
+<h2 id="what-happened-conceptually"><a class="header" href="#what-happened-conceptually">What happened, conceptually</a></h2>
+<ul>
+<li><strong>Facts</strong> were gathered exactly when we asked, with only the finders we
+listed (<a href="#facts">Facts</a>).</li>
+<li><strong>Steps</strong> ran immediately and returned their results; we branched on them
+with plain Lua control flow (<a href="#steps">Steps</a>).</li>
+<li><strong>Failure</strong> aborted the workflow: if <code>test -f marker.txt</code> had exited non-zero
+<em>without</em> <code>ignore_exit_code</code>, the run would have stopped with a <code>failed:</code>
+line naming the step. There is no continue-on-error field — if you want to
+handle an outcome, keep the step from failing and handle the data
+(<a href="#step-specification">Step specification</a>).</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><!-- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier -->
+<!-- SPDX-License-Identifier: CC0-1.0 -->
+<h1 id="qemu--nvme-boot-snapshot-hotplug-test"><a class="header" href="#qemu--nvme-boot-snapshot-hotplug-test">QEMU + NVMe: boot, snapshot, hotplug, test</a></h1>
+<p>This is the workflow class makac was built for: exercise hardware — here QEMU’s
+NVMe device code — inside a real VM, end to end. The pattern is:</p>
+<ol>
+<li><strong>build</strong> a bootable disk image (a cloud-init-customized OS),</li>
+<li><strong>boot</strong> the VM once,</li>
+<li><strong>snapshot</strong> the booted state (RAM + devices) into the image,</li>
+<li>for each test: <strong>resume</strong> from the snapshot in seconds (no re-boot),</li>
+<li><strong>hotplug</strong> an NVMe controller via QMP while the guest runs,</li>
+<li>watch the guest <strong>pick it up</strong>, then <strong>assert</strong> its shape,</li>
+<li><strong>tear down</strong>.</li>
+</ol>
+<p>The VM work is done by the <a href="#the-makac-qemu-package">makac QEMU package</a>, loaded as
+a package. The workflow below is <em>paraphrased and simplified</em> from makac’s own
+end-to-end NVMe test — the shapes are real, the site-local values (paths, ssh
+keys, image URLs) are placeholders.</p>
+<h2 id="setting-up-the-qemu-package"><a class="header" href="#setting-up-the-qemu-package">Setting up the QEMU package</a></h2>
+<p>Declare the package in <code>.makac/packages.lua</code> and fetch it:</p>
+<pre><code class="language-lua">-- .makac/packages.lua
+return {
+    {
+        id = "qemu",
+        fetcher = "fetchgit",
+        with = {
+            url = "https://github.com/jwdevantier/makac.qemu",
+            rev = "main",
+        },
+    },
+}
+</code></pre>
+<pre><code class="language-bash">$ makac fetch
+defined packages (#1):
+  1. qemu (fetcher: fetchgit)
+fetching qemu via fetchgit...
+fetched qemu
+</code></pre>
+<h2 id="12-build-an-image-and-boot-once"><a class="header" href="#12-build-an-image-and-boot-once">1–2. Build an image and boot once</a></h2>
+<p>First a blank 1 GiB raw disk and a cloud-init-customized OS image. The <code>qemu:img</code>
+action is <em>idempotent</em>: it builds by content manifest, so re-runs (and every
+workflow that re-declares the same image) are fast no-ops.</p>
+<pre><code class="language-lua">local raw = step {
+    name = "image raw-1",
+    uses = "qemu:img",
+    with = {
+        name     = "raw-1",
+        builder  = "raw",
+        img_size = "1G",
+    },
+}
+
+local bootbase = step {
+    name = "image bootbase",
+    uses = "qemu:img",
+    with = {
+        name     = "bootbase",
+        builder  = "cloud-init",
+        img_size = "10G",
+        -- any cloud-init-capable base image + its sha256
+        base_img = {
+            url    = "https://example.com/fedora-cloud-base.qcow2",
+            sha256 = "&lt;64 hex chars&gt;",
+        },
+        env = { hostname = "testbox" },
+        -- env_hook = function(env) ... end,   -- e.g. inject an ssh pubkey
+        -- templates = { { template = "...", output = "..." } },
+        -- build_args = { ... },                -- customize the build VM
+    },
+}
+</code></pre>
+<p>Now boot a VM from the built image. Two details matter for the later hotplug:</p>
+<ul>
+<li><strong>No NVMe devices at boot</strong> — this particular workflow hotplugs them, and the
+snapshot must not contain any.</li>
+<li><strong>PCIe root ports are pre-created</strong> — the Q35 machine cannot create root ports
+dynamically, so the hotplug <em>target</em> (a free port) must exist from the start.</li>
+</ul>
+<pre><code class="language-lua">local SSH_PORT = 2201   -- host-side ssh forward (any free port you pick)
+
+local vm = step {
+    name = "boot testvm",
+    uses = "qemu:vm",
+    with = {
+        name     = "testvm",
+        qemu_bin = "/path/to/qemu-system-x86_64",   -- site-local
+        args = {
+            "-machine", "q35,accel=kvm",
+            "-cpu", "host",
+            "-smp", "2",
+            "-m", "1024",
+            { "-netdev", { user = true, id = "net0", hostfwd = "tcp::" .. SSH_PORT .. "-:22" } },
+            { "-device", "virtio-net-pci,netdev=net0" },
+            { "-device", "pcie-root-port,id=root0,chassis=1,slot=0" },
+            { "-device", "pcie-root-port,id=root1,chassis=2,slot=0" },
+            -- boot disk: a qcow2 overlay over the built image, on plain
+            -- virtio (see the note above — no NVMe anywhere at boot)
+            { "-drive", "file={{ disk }},format=qcow2,if=virtio" },
+        },
+        disk = { backing = bootbase.out.path },
+        ssh  = { port = SSH_PORT },
+    },
+}
+</code></pre>
+<p><code>qemu:vm</code> waits for ssh and hands back the VM as <code>out.target</code> — an ordinary
+remote target that later <code>shell</code> steps can run against — plus <code>out.handle</code> and
+<code>out.pid</code>.</p>
+<h2 id="3-snapshot-the-booted-state"><a class="header" href="#3-snapshot-the-booted-state">3. Snapshot the booted state</a></h2>
+<p><code>qemu:savevm</code> captures the running VM’s state (RAM + devices) into its disk
+image under a tag, via QMP:</p>
+<pre><code class="language-lua">local snap = step {
+    name = "snapshot booted state",
+    uses = "qemu:savevm",
+    with = {
+        vm  = vm.out.handle,
+        tag = "base_snapshot",
+    },
+}
+assert(snap.err == nil, tostring(snap.err))
+</code></pre>
+<p>The snapshot lives in the image, so the base VM has done its job. Stop it —
+every later test resumes from the snapshot instead of booting:</p>
+<pre><code class="language-lua">step {
+    name = "stop testvm",
+    uses = "qemu:vm",
+    with = { name = "testvm", state = "stopped" },
+}
+</code></pre>
+<h2 id="4-resume-from-the-snapshot-seconds-not-minutes"><a class="header" href="#4-resume-from-the-snapshot-seconds-not-minutes">4. Resume from the snapshot (seconds, not minutes)</a></h2>
+<p>Each test resumes the snapshot. Because the VM resumes from a saved state, the
+guest is back at a known point and ssh-reachable <strong>far faster than a fresh
+boot</strong> — and the test starts exactly where the snapshot was taken:</p>
+<pre><code class="language-lua">local resumed = step {
+    name = "resume from snapshot",
+    uses = "qemu:loadvm",
+    with = {
+        name     = "testvm",
+        qemu_bin = "/path/to/qemu-system-x86_64",  -- site-local
+        args     = vm_args,                        -- same machine as before
+        snapshot = snap.out.snapshot,              -- -loadvm base_snapshot
+        state    = "restarted",                    -- fresh qemu process
+        ssh      = { port = SSH_PORT },
+    },
+}
+local target = resumed.out.target
+</code></pre>
+<p><code>qemu:loadvm</code> runs QEMU with <code>-loadvm &lt;tag&gt;</code>, giving a <strong>new</strong> qemu process
+(<code>resumed.out.pid</code> differs from the original) that reuses the run directory and
+its overlay — which is exactly what keeps the snapshot alive across the
+close-and-resume.</p>
+<h2 id="56-hotplug-an-nvme-controller-and-watch-the-guest-pick-it-up"><a class="header" href="#56-hotplug-an-nvme-controller-and-watch-the-guest-pick-it-up">5–6. Hotplug an NVMe controller and watch the guest pick it up</a></h2>
+<p>The hotplug is a QMP <code>device_add</code> — synchronous as far as QEMU is concerned, but
+the <em>guest</em> discovers the new device asynchronously. First, a per-run copy of
+the blank raw disk: the guest will write to the hotplugged namespace, and the
+shared 1 GiB blank must not be mutated:</p>
+<pre><code class="language-lua">local ns_img = "./run/mini-ns.img"
+assert(makac.exec({ "cp", raw.out.path, ns_img }).code == 0,
+    "copy raw-1 for the hotplug ns")
+</code></pre>
+<p>The commands are built with the package’s <code>qmp</code> library:</p>
+<pre><code class="language-lua">local qmp = require("pkgs:qemu/qmp")
+
+local hot = step {
+    name = "hotplug nvme controller",
+    uses = "qemu:qmp/send",
+    with = {
+        vm = resumed.out.handle,
+        commands = {
+            qmp.bdev_add("test-bdev", "raw", {
+                ["read-only"] = false,
+                cache = { direct = true },
+                file  = { driver = "file", filename = ns_img },
+            }),
+            qmp.dev_add("nvme", {
+                id     = "nvme0",
+                bus    = "root1",        -- the pre-created root port
+                addr   = "0.0",          -- as a STRING: pins the guest BDF
+                drive  = "test-bdev",    -- nsid 1 realized with the device
+                logical_block_size  = 4096,
+                physical_block_size = 4096,
+            }),
+        },
+    },
+}
+for i, r in ipairs(hot.out.results) do
+    assert(r.error == nil, ("hotplug command %d failed: %s"):format(i, tostring(r.error)))
+end
+</code></pre>
+<p>Then poll the guest over ssh until the device shows up (a bounded retry loop —
+plain Lua around a <code>shell</code> step):</p>
+<pre><code class="language-lua">local found = false
+local last = ""
+for _ = 1, 30 do
+    local s = step {
+        name = "poll guest for nvme",
+        uses = "shell",
+        target = target,
+        with = {
+            cmd = { "sh", "-c", "ls /dev/nvme* 2&gt;/dev/null; dmesg | grep -i nvme | tail -2" },
+            ignore_exit_code = true,  -- device may not exist yet; that's data
+        },
+    }
+    last = s.out.stdout or ""
+    if last:match("/dev/nvme0") then
+        found = true
+        break
+    end
+    makac.time.sleep(2 * makac.time.ns_per_s)
+end
+assert(found, "hotplugged NVMe never appeared in the guest:\n" .. last)
+print("guest sees the hotplugged NVMe")
+</code></pre>
+<h2 id="assert-its-shape"><a class="header" href="#assert-its-shape">Assert its shape</a></h2>
+<p>Once the guest has picked the device up, assert exactly what we care about — one
+controller, and the namespace presenting as 1 GiB with 4K logical sectors:</p>
+<pre><code class="language-lua">local ctrl = step {
+    name = "guest: controller count",
+    uses = "shell",
+    target = target,
+    with = { cmd = { "sh", "-c", "lspci -nn | grep -c '\\[0108\\]'" } },
+}
+assert(tonumber(ctrl.out.stdout:gsub("%s+", "")) == 1, "expected 1 NVMe controller")
+
+local disk = step {
+    name = "guest: namespace shape",
+    uses = "shell",
+    target = target,
+    with = {
+        cmd = { "lsblk", "-b", "-n", "-d", "-o", "NAME,SIZE,LOG-SEC", "/dev/nvme0n1" },
+    },
+}
+local _, size, logsec = disk.out.stdout:match("^(%S+)%s+(%d+)%s+(%d+)")
+assert(tonumber(size) == 1073741824, "expected 1 GiB, got " .. tostring(size))
+assert(tonumber(logsec) == 4096, "expected 4K sectors, got " .. tostring(logsec))
+print(("hotplugged ns: %d bytes, %dB logical sectors"):format(size, logsec))
+</code></pre>
+<h2 id="7-tear-down"><a class="header" href="#7-tear-down">7. Tear down</a></h2>
+<p>Hot-unplug in reverse order (QMP <code>device_del</code> is an asynchronous guest eject),
+then stop the VM cleanly:</p>
+<pre><code class="language-lua">step {
+    name = "unplug nvme controller",
+    uses = "qemu:qmp/send",
+    with = {
+        vm = resumed.out.handle,
+        commands = {
+            { execute = "device_del", arguments = { id = "nvme0" } },
+        },
+    },
+}
+-- optional: qemu:qmp/poll until the DEVICE_DELETED event, then qemu:qmp/consume
+-- to retire it from the event buffer
+
+step {
+    name = "stop testvm",
+    uses = "qemu:vm",
+    with = { name = "testvm", state = "stopped" },
+}
+</code></pre>
+<p>A clean <code>state = "stopped"</code> is a graceful ACPI powerdown (the package escalates
+to QMP <code>quit</code>, then <code>kill -9</code>, if the guest wedges) and removes the VM’s run
+directory. makac also closes every target when the workflow finishes — even on
+failure — so no ssh control masters are left behind.</p>
+<h2 id="the-payoff"><a class="header" href="#the-payoff">The payoff</a></h2>
+<ul>
+<li>The <strong>snapshot</strong> turns “one long boot” into “many instant test starts” — each
+test begins at a known, deterministic machine state.</li>
+<li><strong>Hotplug over QMP</strong> means the machine under test can be reconfigured while
+running, and the workflow <em>observes</em> the guest reacting to it.</li>
+<li>Every primitive is plain Lua: the whole per-test loop (resume → hotplug →
+wait → assert → teardown) can be factored into a <code>function run_test(name)</code> and
+called with different arguments — that is exactly how makac’s own end-to-end
+suite is structured.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><!-- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier -->
+<!-- SPDX-License-Identifier: CC0-1.0 -->
+<h1 id="the-makac-qemu-package"><a class="header" href="#the-makac-qemu-package">The makac QEMU package</a></h1>
+<p>The QEMU package is the plugin that turns makac into a VM orchestrator: it adds
+steps to build disk images, manage QEMU virtual machines, take and resume
+snapshots, and talk to a running VM over QMP.</p>
+<p>It is <strong>a separate project</strong> with its own repository, documentation site, and
+release lifecycle:</p>
+<ul>
+<li>Repository: <strong><a href="https://github.com/jwdevantier/makac.qemu">https://github.com/jwdevantier/makac.qemu</a></strong></li>
+<li>Documentation: <strong><a href="https://jwdevantier.github.io/makac.qemu/">https://jwdevantier.github.io/makac.qemu/</a></strong> — the full
+user manual: concepts, per-action reference, and the NVMe snapshot + hotplug
+example loop</li>
+</ul>
+<h2 id="what-it-does-in-one-breath"><a class="header" href="#what-it-does-in-one-breath">What it does (in one breath)</a></h2>
+<p>The package ships under the id <code>qemu</code>, so its actions are referenced as
+<code>qemu:&lt;action&gt;</code> in workflows:</p>
+<ul>
+<li><code>qemu:img</code> — ensure a disk image is built: a raw blank, a
+cloud-init-customized OS image, or a fully custom builder;</li>
+<li><code>qemu:vm</code> — set a VM’s state: started / stopped / restarted (a started VM is
+returned as an ssh target for <code>shell</code> steps);</li>
+<li><code>qemu:savevm</code> / <code>qemu:loadvm</code> — capture a running VM’s state (RAM + devices)
+into its image under a tag, and boot a VM resuming from such a snapshot —
+the “boot once, test many times” trick;</li>
+<li><code>qemu:qmp/send</code> / <code>qemu:qmp/poll</code> / <code>qemu:qmp/consume</code> — send QMP commands to
+a VM (e.g. hotplug a device) and handle its event stream;</li>
+<li>plus library modules such as <code>require("pkgs:qemu/qmp")</code> (QMP command
+constructors) and <code>require("pkgs:qemu/img")</code> (custom image builders).</li>
+</ul>
+<p>The <a href="#qemu--nvme-boot-snapshot-hotplug-test">QEMU + NVMe example</a> shows the whole loop these
+actions enable: build an image, boot once, snapshot, resume in seconds, hotplug
+an NVMe controller while the guest runs, assert its shape, and tear down.</p>
+<h2 id="where-the-code-lives"><a class="header" href="#where-the-code-lives">Where the code lives</a></h2>
+<p>The package is developed in its own repository (<code>makac.qemu</code>; it lived in
+<code>./extras/makac-qemu/</code> here before the move). Its detailed design notes
+live in <code>design/</code> in the package repository — those are implementer notes;
+the user-facing documentation ships in the makac.qemu repository itself.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+
+            </nav>
+
+        </div>
+
+        <template id=fa-eye><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6C48.6 156 17.3 208 2.5 243.7c-3.3 7.9-3.3 16.7 0 24.6C17.3 304 48.6 356 95.4 399.4C142.5 443.2 207.2 480 288 480s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C433.5 68.8 368.8 32 288 32zM432 256c0 79.5-64.5 144-144 144s-144-64.5-144-144s64.5-144 144-144s144 64.5 144 144zM288 192c0 35.3-28.7 64-64 64c-11.5 0-22.3-3-31.6-8.4c-.2 2.8-.4 5.5-.4 8.4c0 53 43 96 96 96s96-43 96-96s-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6z"/></svg></span></template>
+        <template id=fa-eye-slash><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L525.6 386.7c39.6-40.6 66.4-86.1 79.9-118.4c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C465.5 68.8 400.8 32 320 32c-68.2 0-125 26.3-169.3 60.8L38.8 5.1zM223.1 149.5C248.6 126.2 282.7 112 320 112c79.5 0 144 64.5 144 144c0 24.9-6.3 48.3-17.4 68.7L408 294.5c5.2-11.8 8-24.8 8-38.5c0-53-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6c0 10.2-2.4 19.8-6.6 28.3l-90.3-70.8zm223.1 298L373 389.9c-16.4 6.5-34.3 10.1-53 10.1c-79.5 0-144-64.5-144-144c0-6.9 .5-13.6 1.4-20.2L83.1 161.5C60.3 191.2 44 220.8 34.5 243.7c-3.3 7.9-3.3 16.7 0 24.6c14.9 35.7 46.2 87.7 93 131.1C174.5 443.2 239.2 480 320 480c47.8 0 89.9-12.9 126.2-32.5z"/></svg></span></template>
+        <template id=fa-copy><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M502.6 70.63l-61.25-61.25C435.4 3.371 427.2 0 418.7 0H255.1c-35.35 0-64 28.66-64 64l.0195 256C192 355.4 220.7 384 256 384h192c35.2 0 64-28.8 64-64V93.25C512 84.77 508.6 76.63 502.6 70.63zM464 320c0 8.836-7.164 16-16 16H255.1c-8.838 0-16-7.164-16-16L239.1 64.13c0-8.836 7.164-16 16-16h128L384 96c0 17.67 14.33 32 32 32h47.1V320zM272 448c0 8.836-7.164 16-16 16H63.1c-8.838 0-16-7.164-16-16L47.98 192.1c0-8.836 7.164-16 16-16H160V128H63.99c-35.35 0-64 28.65-64 64l.0098 256C.002 483.3 28.66 512 64 512h192c35.2 0 64-28.8 64-64v-32h-47.1L272 448z"/></svg></span></template>
+        <template id=fa-play><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M73 39c-14.8-9.1-33.4-9.4-48.5-.9S0 62.6 0 80V432c0 17.4 9.4 33.4 24.5 41.9s33.7 8.1 48.5-.9L361 297c14.3-8.7 23-24.2 23-41s-8.7-32.2-23-41L73 39z"/></svg></span></template>
+        <template id=fa-clock-rotate-left><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M75 75L41 41C25.9 25.9 0 36.6 0 57.9V168c0 13.3 10.7 24 24 24H134.1c21.4 0 32.1-25.9 17-41l-30.8-30.8C155 85.5 203 64 256 64c106 0 192 86 192 192s-86 192-192 192c-40.8 0-78.6-12.7-109.7-34.4c-14.5-10.1-34.4-6.6-44.6 7.9s-6.6 34.4 7.9 44.6C151.2 495 201.7 512 256 512c141.4 0 256-114.6 256-256S397.4 0 256 0C185.3 0 121.3 28.7 75 75zm181 53c-13.3 0-24 10.7-24 24V256c0 6.4 2.5 12.5 7 17l72 72c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-65-65V152c0-13.3-10.7-24-24-24z"/></svg></span></template>
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr-ef4e11c1.min.js"></script>
+        <script src="mark-09e88c2c.min.js"></script>
+        <script src="searcher-c2a407aa.js"></script>
+
+        <script src="clipboard-1626706a.min.js"></script>
+        <script src="highlight-abc7f01d.js"></script>
+        <script src="book-a0b12cfe.js"></script>
+
+        <!-- Custom JS scripts -->
+
+        <script>
+        window.addEventListener('load', function() {
+            window.setTimeout(window.print, 100);
+        });
+        </script>
+
+
+    </div>
+    </body>
+</html>
