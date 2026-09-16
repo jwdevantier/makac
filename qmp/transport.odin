@@ -13,7 +13,10 @@
 //
 // The abstraction is an interface (a data pointer + a vtable of two procs):
 // `connect` establishes the connection (honouring a deadline) and returns the
-// fd; `close` releases it.
+// fd; `close` releases it. The backend records the fd in its state at connect
+// time, so `close` takes no fd argument: it closes the connection only if one
+// was established, and frees the state. Call `close` at most once per
+// transport — it frees `data`.
 
 package qmp
 
@@ -30,7 +33,7 @@ import "core:time"
 Transport :: struct {
 	data:    rawptr,
 	connect: proc(data: rawptr, deadline: time.Time) -> (fd: posix.FD, err: Error),
-	close:   proc(data: rawptr, fd: posix.FD),
+	close:   proc(data: rawptr),
 }
 
 // ---------------------------------------------------------------------------
@@ -84,6 +87,8 @@ _transport_close_fd :: proc(fd: posix.FD) {
 _Unix_Transport :: struct {
 	path:     [108]u8, // kernel max; BSD/macOS use only the first 104.
 	path_len: int,
+	/// Connection fd, set on success; -1 = none (never a valid fd).
+	conn:     posix.FD,
 }
 
 /// Create a transport that connects to a QMP Unix socket at `socket_path`.
@@ -94,6 +99,7 @@ unix_transport :: proc(t: ^Transport, socket_path: string) -> bool {
 		return false
 	}
 	ut := new(_Unix_Transport)
+	ut.conn = -1 // the zero value 0 is a valid fd; -1 is not
 	ut.path_len = len(socket_path)
 	for i in 0 ..< len(socket_path) {
 		ut.path[i] = socket_path[i]
@@ -106,14 +112,15 @@ unix_transport :: proc(t: ^Transport, socket_path: string) -> bool {
 
 _unix_connect :: proc(data: rawptr, deadline: time.Time) -> (posix.FD, Error) {
 	ut := cast(^_Unix_Transport)data
+	ut.conn = -1
 
 	fd := posix.socket(.UNIX, .STREAM, .IP)
 	if fd == -1 {
-		return 0, .Connect_Failed
+		return -1, .Connect_Failed
 	}
 	if !_posix_set_nonblocking(fd) {
 		posix.close(fd)
-		return 0, .Connect_Failed
+		return -1, .Connect_Failed
 	}
 
 	// sockaddr_un differs per OS (BSD/macOS have a leading sun_len and a
@@ -130,22 +137,28 @@ _unix_connect :: proc(data: rawptr, deadline: time.Time) -> (posix.FD, Error) {
 
 	res := posix.connect(fd, cast(^posix.sockaddr)&addr, posix.socklen_t(size_of(addr)))
 	if res == .OK {
+		ut.conn = fd
 		return fd, .None // completed immediately
 	}
 	if posix.errno() != .EINPROGRESS {
 		posix.close(fd)
-		return 0, .Connect_Failed
+		return -1, .Connect_Failed
 	}
 	if ferr := _transport_finish_connect(fd, deadline); ferr != .None {
 		posix.close(fd)
-		return 0, ferr
+		return -1, ferr
 	}
+	ut.conn = fd
 	return fd, .None
 }
 
-_unix_close :: proc(data: rawptr, fd: posix.FD) {
-	_transport_close_fd(fd)
-	free(cast(^_Unix_Transport)data)
+_unix_close :: proc(data: rawptr) {
+	ut := cast(^_Unix_Transport)data
+	if ut.conn >= 0 {
+		_transport_close_fd(ut.conn)
+		ut.conn = -1
+	}
+	free(ut)
 }
 
 // ---------------------------------------------------------------------------
@@ -154,6 +167,8 @@ _unix_close :: proc(data: rawptr, fd: posix.FD) {
 
 _TCP_Transport :: struct {
 	endpoint: net.Endpoint,
+	/// Connection fd, set on success; -1 = none.
+	conn:     posix.FD,
 }
 
 /// Create a transport that connects to a QMP TCP endpoint ("host:port", e.g.
@@ -167,6 +182,7 @@ tcp_transport :: proc(t: ^Transport, endpoint_str: string) -> bool {
 		return false
 	}
 	tt := new(_TCP_Transport)
+	tt.conn = -1 // the zero value 0 is a valid fd; -1 is not
 	tt.endpoint = ep
 	t.data = tt
 	t.connect = _tcp_connect
@@ -185,11 +201,11 @@ _tcp_connect :: proc(data: rawptr, deadline: time.Time) -> (posix.FD, Error) {
 
 	fd := posix.socket(family, .STREAM, .IP)
 	if fd == -1 {
-		return 0, .Connect_Failed
+		return -1, .Connect_Failed
 	}
 	if !_posix_set_nonblocking(fd) {
 		posix.close(fd)
-		return 0, .Connect_Failed
+		return -1, .Connect_Failed
 	}
 
 	res: posix.result
@@ -230,20 +246,26 @@ _tcp_connect :: proc(data: rawptr, deadline: time.Time) -> (posix.FD, Error) {
 	_ = addr_len
 
 	if res == .OK {
+		tt.conn = fd
 		return fd, .None // completed immediately
 	}
 	if posix.errno() != .EINPROGRESS {
 		posix.close(fd)
-		return 0, .Connect_Failed
+		return -1, .Connect_Failed
 	}
 	if ferr := _transport_finish_connect(fd, deadline); ferr != .None {
 		posix.close(fd)
-		return 0, ferr
+		return -1, ferr
 	}
+	tt.conn = fd
 	return fd, .None
 }
 
-_tcp_close :: proc(data: rawptr, fd: posix.FD) {
-	_transport_close_fd(fd)
-	free(cast(^_TCP_Transport)data)
+_tcp_close :: proc(data: rawptr) {
+	tt := cast(^_TCP_Transport)data
+	if tt.conn >= 0 {
+		_transport_close_fd(tt.conn)
+		tt.conn = -1
+	}
+	free(tt)
 }

@@ -470,7 +470,7 @@ connect_transport :: proc(
 
 	fd, cerr := t.connect(t.data, deadline)
 	if cerr != .None {
-		_free_transport(&c)
+		_release_transport(&c)
 		delete(c.rbuf)
 		delete(c.events)
 		err = cerr
@@ -557,7 +557,7 @@ _remaining :: proc(deadline: time.Time) -> time.Duration {
 
 /// Close the connection and free all client memory.
 close :: proc(c: ^Client) {
-	_close_fd(c)
+	_release_transport(c)
 	_clear_events(c)
 	_clear_last_reply(c)
 	// `c.rbuf` is a `[]u8`; `delete` on a slice defaults to
@@ -574,20 +574,16 @@ close :: proc(c: ^Client) {
 	virtual.arena_destroy(&c.scratch_arena)
 }
 
-_close_fd :: proc(c: ^Client) {
-	if c.connected {
-		c.transport.close(c.transport.data, c.conn)
-		c.transport = {}
-	}
-	c.connected = false
-}
-
-// Free a transport's state without touching the fd (used when connect fails).
-_free_transport :: proc(c: ^Client) {
+/// Release the transport: the backend closes its connection fd if it owns
+/// one and frees its state; safe after a failed connect too. `c.transport = {}`
+/// makes a second call a no-op — the vtable close frees `data`, so it runs at
+/// most once per transport.
+_release_transport :: proc(c: ^Client) {
 	if c.transport.close != nil {
-		c.transport.close(c.transport.data, 0)
+		c.transport.close(c.transport.data)
 	}
 	c.transport = {}
+	c.connected = false
 }
 
 /// Is the client connected?
