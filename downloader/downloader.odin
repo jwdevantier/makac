@@ -316,16 +316,16 @@ download_fn :: proc(url: string, dest_path: string) -> Error
 /// RSS. See the package doc for why we use the CLI rather than `vendor:curl`.
 ///
 /// Flags: `-f` fail with non-zero exit on HTTP errors, `-sL` silent and
-/// follow redirects, `--proto[`-redir`]` clamped to http(s) — plus `file` on
-/// `--proto` so local tarballs can be served without a network (offline
-/// tests, pre-seeded mirrors) — `-o <dest_path>` write body to that file,
+/// follow redirects, `--proto[`-redir`]` clamped to http(s) — downloads are
+/// network-only; a local file is the `filesystem` fetcher's job, not a
+/// download scheme — `-o <dest_path>` write body to that file,
 /// `--` end of options (so a URL can never be read as a flag).
 curl_cli_download :: proc(url: string, dest_path: string) -> Error {
 	args := []string {
 		"curl",
 		"-fsSL",
 		"--proto",
-		"=http,https,file",
+		"=http,https",
 		"--proto-redir",
 		"=http,https",
 		"-o",

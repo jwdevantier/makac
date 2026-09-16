@@ -668,8 +668,82 @@ test_fetch_over_https :: proc(t: ^T) {
 	testing.expect(t, !os.exists(file_path), "failed verification must leave no cache entry")
 }
 
+// ---------------------------------------------------------------------------
+// Loopback HTTP server (in-process): serves one prebuilt response to every
+// request, so the REAL curl download path can run in a test with no network
+// (the downloader's --proto allowlist is http(s) only — no file://).
+// ---------------------------------------------------------------------------
+
+Http_Fixture :: struct {
+	ln:   posix.FD,
+	port: u16,     // host byte order
+	resp: string,  // owned (context.allocator); freed by _http_stop
+	th:   ^thread.Thread,
+}
+
+_http_serve :: proc(srv: ^Http_Fixture) {
+	context = runtime.default_context()
+	posix.signal(.SIGPIPE, auto_cast posix.SIG_IGN)
+	for {
+		conn := posix.accept(srv.ln, nil, nil)
+		if conn == -1 {return} // listener shut down: we're done
+		_http_handle(conn, srv.resp)
+	}
+}
+
+_http_handle :: proc(conn: posix.FD, resp: string) {
+	defer posix.close(conn)
+	// Drain the request head so curl sees a well-formed exchange; its
+	// content is irrelevant here.
+	buf: [4096]u8
+	got := 0
+	for got < len(buf) {
+		n := posix.read(conn, &buf[got], uint(len(buf) - got))
+		if n <= 0 {break}
+		got += int(n)
+		if strings.contains(string(buf[:got]), "\r\n\r\n") {break}
+	}
+	_fake_qmp_write(conn, resp)
+}
+
+_http_start :: proc(t: ^T, body: string) -> ^Http_Fixture {
+	srv := new_clone(Http_Fixture{}, context.temp_allocator)
+	srv.ln = posix.socket(.INET, .STREAM, .IP)
+	testing.expect(t, srv.ln != -1, "http fixture: socket")
+	addr: posix.sockaddr_in
+	addr.sin_family = .INET
+	addr.sin_port = 0 // ephemeral
+	addr.sin_addr.s_addr = transmute(u32be)([4]u8{127, 0, 0, 1})
+	testing.expect(t, posix.bind(srv.ln, cast(^posix.sockaddr)&addr, posix.socklen_t(size_of(addr))) == .OK,
+		"http fixture: bind")
+	slen := posix.socklen_t(size_of(posix.sockaddr_in))
+	testing.expect(t, posix.getsockname(srv.ln, cast(^posix.sockaddr)&addr, &slen) == .OK,
+		"http fixture: getsockname")
+	srv.port = u16(u16be(addr.sin_port))
+	testing.expect(t, posix.listen(srv.ln, 4) == .OK, "http fixture: listen")
+	// The response is prebuilt here: the serve thread performs NO allocation
+	// (its context is not the test's; sharing an arena across threads would
+	// race).
+	srv.resp = fmt.aprintf(
+		"HTTP/1.1 200 OK\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s",
+		len(body), body, allocator = context.allocator,
+	)
+	srv.th = thread.create_and_start_with_poly_data(srv, _http_serve)
+	return srv
+}
+
+_http_stop :: proc(srv: ^Http_Fixture) {
+	posix.shutdown(srv.ln, .RDWR) // unblock a pending accept
+	thread.join(srv.th)
+	thread.destroy(srv.th)
+	posix.close(srv.ln)
+	delete(srv.resp, context.allocator)
+}
+
 // makac.download: with an explicit cache-dir hint it works even in a
-// data-dir-less VM; checksum mismatches surface as a clear error.
+// data-dir-less VM; checksum mismatches surface as a clear error. The body
+// is served by the loopback HTTP fixture, so the real curl path runs with
+// no network.
 @(test)
 test_download_primitive :: proc(t: ^T) {
 	dir, derr := os.make_directory_temp("", "makac_vm_download_*", context.allocator)
@@ -680,12 +754,14 @@ test_download_primitive :: proc(t: ^T) {
 	v := new()
 	defer close(v)
 
-	// fixture file served over file:// (curl supports it — no network)
-	payload := strings.concatenate([]string{dir, "/payload.bin"}, context.temp_allocator)
-	testing.expect(t, os.write_entire_file_from_string(payload, "download-marker") == nil)
-	digest, herr := dl.hash_file(payload, context.temp_allocator)
+	srv := _http_start(t, "download-marker")
+	defer _http_stop(srv)
+	url := fmt.aprintf("http://127.0.0.1:%d/payload.bin", srv.port, allocator = context.temp_allocator)
+	// digest of the served body (hash_file wants a file; any copy will do)
+	pfile := strings.concatenate([]string{dir, "/payload.bin"}, context.temp_allocator)
+	testing.expect(t, os.write_entire_file_from_string(pfile, "download-marker") == nil)
+	digest, herr := dl.hash_file(pfile, context.temp_allocator)
 	testing.expectf(t, herr == nil, "hash fixture: {}", herr)
-	url := strings.concatenate([]string{"file://", payload}, context.temp_allocator)
 	cache := strings.concatenate([]string{dir, "/hint-cache"}, context.temp_allocator)
 
 	chunk := `
