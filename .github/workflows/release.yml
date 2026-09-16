@@ -19,8 +19,12 @@ jobs:
         include:
           - target: amd64
             runner: ubuntu-22.04
+            # sha256 of odin-linux-amd64-dev-2026-06.tar.gz; also the cache
+            # key, so bumping the pin automatically invalidates the cache.
+            sha256: 40f38b462f30914c7f07271c56c8b4b7a7a6e5d82789c8165f75ab569c3b96cc
           - target: arm64
             runner: ubuntu-24.04-arm
+            sha256: 01fc4938cb79d82064bf0b20c4745732e74cc508fdcb6669fa1fa29be8a7d8d4
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
@@ -30,11 +34,30 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y clang
 
-      - name: Download Odin dev-2026-06
+      # The extracted toolchain (~700 MB) is cached under ~/.odin-toolchain,
+      # keyed by the pinned tarball checksum. On a cache miss the step below
+      # downloads, verifies and extracts it; actions/cache saves it afterwards.
+      # Caches are shared between workflows in this repository.
+      - name: Cache Odin toolchain
+        uses: actions/cache@v4
+        with:
+          path: ~/.odin-toolchain
+          key: odin-dev-2026-06-linux-${{ matrix.target }}-${{ matrix.sha256 }}
+
+      - name: Install Odin dev-2026-06
         run: |
-          curl -fsSL -o odin.tar.gz "https://github.com/odin-lang/Odin/releases/download/dev-2026-06/odin-linux-${{ matrix.target }}-dev-2026-06.tar.gz"
-          tar -xzf odin.tar.gz -C "$RUNNER_TEMP"
-          echo "$RUNNER_TEMP/odin" >> "$GITHUB_PATH"
+          set -euo pipefail
+          if [ ! -x "$HOME/.odin-toolchain/odin" ]; then
+            curl -fsSL -o odin.tar.gz "https://github.com/odin-lang/Odin/releases/download/dev-2026-06/odin-linux-${{ matrix.target }}-dev-2026-06.tar.gz"
+            echo "${{ matrix.sha256 }}  odin.tar.gz" | sha256sum -c -
+            mkdir -p "$HOME/.odin-toolchain"
+            # The tarball's top-level directory is a nightly-stamped name
+            # (e.g. odin-linux-amd64-nightly+2026-06-08), so strip it and keep
+            # the toolchain at a stable path.
+            tar -xzf odin.tar.gz -C "$HOME/.odin-toolchain" --strip-components=1
+          fi
+          "$HOME/.odin-toolchain/odin" version
+          echo "$HOME/.odin-toolchain" >> "$GITHUB_PATH"
 
       - name: Build makac
         run: odin build . -out:makac
