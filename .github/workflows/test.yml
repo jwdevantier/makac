@@ -1,0 +1,77 @@
+# SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier
+# SPDX-License-Identifier: CC0-1.0
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Superseded runs on the same ref are cancelled so a rapid stream of pushes
+# does not queue up stale test runs.
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: amd64
+            runner: ubuntu-22.04
+          - target: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install clang
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang
+
+      - name: Download Odin dev-2026-06
+        run: |
+          curl -fsSL -o odin.tar.gz "https://github.com/odin-lang/Odin/releases/download/dev-2026-06/odin-linux-${{ matrix.target }}-dev-2026-06.tar.gz"
+          tar -xzf odin.tar.gz -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/odin" >> "$GITHUB_PATH"
+
+      - name: Build makac
+        run: odin build . -out:makac
+
+      # Unit tests for every package that carries *_test.odin files.
+      # The package list is discovered from tracked test files, so a new
+      # package with tests is picked up automatically. Each package runs
+      # in its own log group; a failure in one does not hide the results
+      # of the others, but the step (and job) still fails.
+      - name: Unit tests (all packages)
+        run: |
+          set -uo pipefail
+          status=0
+          for pkg in $(git ls-files '*_test.odin' | xargs -n1 dirname | sort -u); do
+            echo "::group::odin test ./$pkg"
+            if ! odin test "./$pkg"; then status=1; fi
+            echo "::endgroup::"
+          done
+          exit $status
+
+      # QMP integration suite: builds qmp_test/main.odin, starts the Python
+      # fake QMP server (unix + TCP) and runs the driver against both
+      # transports. python3 ships with the runner images.
+      - name: QMP integration tests (fake server, unix + TCP)
+        run: ./qmp_test/run_tests.sh
+
+      # Opt-in network coverage: the downloader's real-world HTTPS test is
+      # gated behind MAKAC_REAL_WORLD so plain `odin test` stays hermetic
+      # (it fetches a content-pinned file from cdn.jsdelivr.net and verifies
+      # its sha256, so a failure means a regression or a changed artifact).
+      - name: Real-world download test (network)
+        run: MAKAC_REAL_WORLD=1 odin test ./downloader
