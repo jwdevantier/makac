@@ -27,7 +27,10 @@ resolve :: proc(
 ) -> (dir_path: string, err: Error) {
 	dir := filepath.abs(start_dir, context.temp_allocator) or_else start_dir
 
-	for {
+	// The walk terminates on its own at the filesystem root (`parent == dir`);
+	// limit iterations to avoid infinite loops on a cycle.
+	MAX_WALK_UP :: 64
+	for max_iter := MAX_WALK_UP; max_iter > 0; max_iter -= 1 {
 		makac := filepath.join({dir, ".makac"}, context.temp_allocator) or_else ""
 		if os.is_dir(makac) {
 			return strings.clone(makac, allocator), .None
@@ -45,6 +48,8 @@ resolve :: proc(
 		}
 		dir = parent
 	}
+
+	return "", .Not_Found
 }
 
 // Initialize a data directory per design/cli.md: if `path` ends with
