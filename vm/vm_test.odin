@@ -1213,8 +1213,8 @@ test_ssh_target :: proc(t: ^T) {
 	log_path := fmt.tprintf("%s/stub.log", base)
 	stub_script :=
 		"#!/bin/sh\n" +
-		"for a in \"$@\"; do printf '<%s>' \"$a\" >> \"$STUB_LOG\"; done\n" +
-		"echo >> \"$STUB_LOG\"\n" +
+		"line=''; for a in \"$@\"; do line=\"$line<$a>\"; done\n" +
+		"printf '%s\\n' \"$line\" >> \"$STUB_LOG\"\n" +
 		"cat >/dev/null 2>&1 || true\n" + // drain stdin so makac's stdin write never blocks
 		"printf 'stub-stdout\\n'\n" +
 		"printf 'stub-stderr\\n' >&2\n" +
