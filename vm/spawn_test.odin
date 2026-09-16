@@ -6,6 +6,7 @@ import "core:c"
 import "core:fmt"
 import "core:sys/posix"
 import "core:testing"
+import "core:time"
 
 import lua "vendor:lua/5.4"
 
@@ -213,6 +214,84 @@ test_spawn_gc_never_kills :: proc(t: ^testing.T) {
 	lua.pop(v.state, 1)
 	st: c.int
 	testing.expect(t, posix.waitpid(gcpid, &st, {}) == gcpid, "killed GC'd child must be reapable")
+}
+
+// A spawn child must be DETACHED (design/stdlib.md, "Launching long-lived
+// processes": fork like qqmgr, "no -daemonize"). Detached means a NEW
+// SESSION, and that is the whole point: the controlling terminal delivers ^C
+// (SIGINT) to its FOREGROUND PROCESS GROUP, so a child left in makac's group
+// is killed by the same keystroke that kills makac. Reproduced 2026-09-16 on
+// a real pty against ./makac: one 0x03 byte left makac a zombie (state Z) and
+// both spawned children gone. `setsid()` in the child, before exec, is the fix.
+// makac itself must stay in the terminal's foreground group — Ctrl-C must keep
+// working for the workflow.
+@(test)
+test_spawn_child_detaches_into_its_own_session :: proc(t: ^testing.T) {
+	v := new()
+	defer close(v)
+	err, ok := run_string(
+		v,
+		`
+		local fs = makac.fs
+		local dir = tostring(fs.mktemp_dir("makac_spawn_session"))
+		g_p = makac.spawn({"sleep", "30"}, { stdout = dir .. "/out.log", stderr = dir .. "/err.log" })
+		g_pid = g_p.pid
+		`,
+	)
+	defer delete(err.message)
+	if !testing.expect(t, ok, "spawning a long-lived child must succeed") {
+		log_time_err(t, err)
+		return
+	}
+
+	lua.getglobal(v.state, "g_pid")
+	pid := posix.pid_t(lua.tointeger(v.state, -1))
+	lua.pop(v.state, 1)
+	if !testing.expect(t, pid > 1, fmt.tprintf("spawn must report a real child pid, got %d", pid)) {
+		return
+	}
+
+	// Detaching is asynchronous: fork() returns in the parent BEFORE the child has
+	// reached setsid(), so reading the ids straight away races the child and
+	// sometimes observes the pre-detach state (this test was flaky for exactly
+	// that reason). Poll against a bounded deadline: latency is forgiven, a child
+	// that never detaches is not — that convergence is the property under test.
+	child_pgrp := posix.getpgid(pid)
+	child_sid := posix.getsid(pid)
+	for _ in 0 ..< 100 {
+		if child_pgrp == pid && child_sid == pid {
+			break
+		}
+		time.sleep(10 * time.Millisecond)
+		child_pgrp = posix.getpgid(pid)
+		child_sid = posix.getsid(pid)
+	}
+	our_pgrp := posix.getpgrp()
+	our_sid := posix.getsid(0)
+
+	// The claim, three ways: the child leads its own group and its own
+	// session, and shares neither with makac.
+	testing.expect(
+		t,
+		child_pgrp == pid,
+		fmt.tprintf("detached child must lead its own process group (pgid == pid); child pid=%d, child pgid=%d, makac pgid=%d", pid, child_pgrp, our_pgrp),
+	)
+	testing.expect(
+		t,
+		child_sid == pid,
+		fmt.tprintf("detached child must lead its own session (sid == pid) so a terminal ^C cannot reach it; child pid=%d, child sid=%d, makac sid=%d", pid, child_sid, our_sid),
+	)
+	testing.expect(
+		t,
+		child_pgrp != our_pgrp,
+		fmt.tprintf("child must not share makac's process group; both are %d", child_pgrp),
+	)
+
+	// No :kill by design — stop it with a plain signal and reap it, so the
+	// suite leaves nothing behind.
+	testing.expect(t, posix.kill(pid, .SIGTERM) == .OK, fmt.tprintf("SIGTERM to the test child %d must succeed", pid))
+	st: c.int
+	testing.expect(t, posix.waitpid(pid, &st, {}) == pid, "test child must be reapable after SIGTERM")
 }
 
 _Spawn_Op :: enum {

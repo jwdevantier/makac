@@ -22,6 +22,18 @@ import lua "vendor:lua/5.4"
 //     proc:status() -> "running" | { code = }  -- waitpid(WNOHANG); reaps once exited
 //
 // Hard rules of detached spawning, per spec:
+// * the child is detached for real — setsid() in the child before exec, so it
+//   leads its OWN session and process group. This is the part stdio redirection
+//   cannot substitute for: the terminal delivers ^C (SIGINT) to the FOREGROUND
+//   PROCESS GROUP (the pty driver does kill(-tpgrp, SIGINT)), not to whoever
+//   happens to own fd 0, so a child left in makac's group dies with makac — a
+//   guest lost to a stray keystroke mid-pipeline instead of to QMP `quit`.
+//   There is no opts.attach opt-out on purpose: an attached long-lived guest has
+//   no teardown story that is not "the operator hit Ctrl-C and the run is over",
+//   and the launch window / pidfile / QMP ownership in launch.md all assume makac
+//   survives the shell that started it. Guarded by
+//   test_spawn_child_detaches_into_its_own_session (vm/spawn_test.odin), which
+//   asserts child pgid == sid == child pid.
 // * stdio goes to FILES, never pipes — a pipe reader would block for the
 //   child's whole lifetime. stdin is /dev/null (fs.null_file()).
 // * stdout/stderr opts are required, string-or-path each.
@@ -253,6 +265,26 @@ _makac_spawn :: proc "c" (L: ^lua.State) -> c.int {
 		_ = posix.close(err_fd)
 		if chdir_cs != nil {
 			if posix.chdir(chdir_cs) != .OK {posix._exit(126)}
+		}
+		// Detach: a new session, a new process group, and therefore — the whole
+		// point — no controlling terminal. A child left in makac's group dies
+		// with makac: the terminal delivers ^C (SIGINT) to the FOREGROUND PROCESS
+		// GROUP (the pty driver does kill(-tpgrp, SIGINT)), not to whoever owns
+		// fd 0, so redirecting stdio buys nothing here. A guest must instead be
+		// torn down by QMP `quit` / proc:signal per launch.md, never by a stray
+		// keystroke. Legal only at this point: setsid fails EPERM for a process
+		// group leader, and a fresh fork() child never is.
+		if posix.setsid() < 0 {
+			// Stay loud and refuse to run attached: fd 2 is already the child's
+			// stderr log (write of a literal allocates nothing), and the immediate
+			// exit surfaces through the launch window — a QMP socket that never
+			// appears is a step failure — rather than leaving an attached guest
+			// that nobody can reach. 125 is distinct from 126 (chdir) and 127
+			// (exec not found).
+			buf: [96]u8
+			n := copy(buf[:], "makac.spawn: setsid failed; refusing to run attached to a controlling terminal\n")
+			posix.write(2, &buf[0], c.size_t(n))
+			posix._exit(125)
 		}
 		if cenvp != nil {
 			_ = posix.execve(exe, &cargv[0], &cenvp[0])
