@@ -29,10 +29,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install clang
+      - name: Install clang and Lua
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang
+          # liblua5.4-dev: vendor:lua/5.4 bundles its Lua library for Linux
+          # amd64 only; on arm64 it links the system lua5.4 instead, so the
+          # dev package is required there (harmless on amd64).
+          sudo apt-get install -y clang liblua5.4-dev
 
       # The extracted toolchain (~700 MB) is cached under ~/.odin-toolchain,
       # keyed by the pinned tarball checksum. On a cache miss the step below

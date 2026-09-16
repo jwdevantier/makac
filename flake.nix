@@ -34,7 +34,6 @@
           };
           patches = [
             ./nix.patches/darwin-remove-impure-links.patch
-            ./nix.patches/system-raylib.patch
           ];
         });
 
@@ -57,7 +56,6 @@
           packages = with pkgs; [
             odin
             ols
-            sqlite # the `sqlite3` CLI; the lib + headers are wired up below
 
             gcc
             gnumake
@@ -65,18 +63,11 @@
             gdb
           ];
 
-          # Odin itself reads NO library search env vars (LIBRARY_DIRS,
-          # C_INCLUDE_DIRS, etc.). It just shells out to clang, which links the
-          # system lib you declare with `foreign import lib "system:sqlite3"`
-          # as `-lsqlite3`. So we expose sqlite's lib dir to the linker Odin
-          # invokes, and to the dynamic loader at run time.
-          #
-          # LIBRARY_PATH   -> clang's link-time search path (additive)
-          # LD_LIBRARY_PATH-> dynamic loader search path at run time
-          # C_INCLUDE_PATH -> sqlite's public headers (useful for C bindings)
-          LIBRARY_PATH     = pkgs.lib.makeLibraryPath [ pkgs.sqlite ];
-          LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [ pkgs.sqlite ];
-          C_INCLUDE_PATH   = "${pkgs.lib.getDev pkgs.sqlite}/include";
+          # NOTE: Odin reads no library search env vars (LIBRARY_DIRS,
+          # C_INCLUDE_DIRS, ...) itself; it shells out to clang, which links
+          # any `foreign import lib "system:<name>"` as `-l<name>`. If a
+          # system library is ever needed, wire it up the usual Nix way:
+          #   LIBRARY_PATH/LD_LIBRARY_PATH = lib.makeLibraryPath [ pkgs.<lib> ]
 
           shellHook = ''
             echo "Odin:  $(odin version)"
