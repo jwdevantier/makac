@@ -309,6 +309,24 @@ file_matches_sha256 :: proc(path, expected: string) -> bool {
 /// `SSH_BIN`.
 download_fn :: proc(url: string, dest_path: string) -> Error
 
+// ---------------------------------------------------------------------------
+// Transfer bounds
+// ---------------------------------------------------------------------------
+
+/// Bound the CONNECT phase: an unreachable or blackholed server aborts within
+/// this many seconds. curl has NO default connect timeout — without this, the
+/// OS TCP timeout (~2 minutes of silence) applies.
+CONNECT_TIMEOUT_S :: "10"
+
+/// Stall detection: abort when the transfer delivers less than
+/// `STALL_SPEED_LIMIT_B` bytes per second for `STALL_TIME_S` consecutive
+/// seconds — a wedged server (connection alive, no bytes) or an endless
+/// trickle dies here. A transfer making real progress never trips it, so a
+/// slow-but-healthy multi-GB download is unaffected. No total-time cap on
+/// purpose: multi-GB images over slow links legitimately run for hours.
+STALL_SPEED_LIMIT_B :: "1024" // 1 KiB/s
+STALL_TIME_S       :: "30"
+
 /// curl_cli_download is the default `download_fn`: it shells out to the `curl`
 /// CLI (`curl -fsSL --proto =http,https --proto-redir =http,https -o <dest> -- url`)
 /// which streams the response body straight to `dest_path` — the body never
@@ -319,7 +337,9 @@ download_fn :: proc(url: string, dest_path: string) -> Error
 /// follow redirects, `--proto[`-redir`]` clamped to http(s) — downloads are
 /// network-only; a local file is the `filesystem` fetcher's job, not a
 /// download scheme — `-o <dest_path>` write body to that file,
-/// `--` end of options (so a URL can never be read as a flag).
+/// `--` end of options (so a URL can never be read as a flag),
+/// `--connect-timeout` / `--speed-limit` / `--speed-time` bound the transfer
+/// (see the Transfer bounds constants above).
 curl_cli_download :: proc(url: string, dest_path: string) -> Error {
 	args := []string {
 		"curl",
@@ -328,6 +348,12 @@ curl_cli_download :: proc(url: string, dest_path: string) -> Error {
 		"=http,https",
 		"--proto-redir",
 		"=http,https",
+		"--connect-timeout",
+		CONNECT_TIMEOUT_S,
+		"--speed-limit",
+		STALL_SPEED_LIMIT_B,
+		"--speed-time",
+		STALL_TIME_S,
 		"-o",
 		dest_path,
 		"--",
