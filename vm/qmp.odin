@@ -261,7 +261,7 @@ _qmp_send :: proc "c" (L: ^lua.State) -> c.int {
 		cmd_obj := make(json.Object, allocator = context.temp_allocator)
 		cmd_obj["execute"] = json.String(exe)
 		if t := lua.getfield(L, cmd_idx, "arguments"); t == c.int(lua.Type.TABLE) {
-			cmd_obj["arguments"] = _lua_to_json(L, -1, fmt.tprintf("%s.arguments", path), "makac.qmp")
+			cmd_obj["arguments"] = _lua_to_json(L, -1, fmt.tprintf("%s.arguments", path), "makac.qmp", 0)
 		} else if t != c.int(lua.Type.NIL) {
 			lua.pop(L, 1)
 			return c.int(lua.L_error(L, "makac.qmp: send: %s.arguments must be a table", cstring(raw_data(path))))
@@ -291,7 +291,7 @@ _qmp_send :: proc "c" (L: ^lua.State) -> c.int {
 		lua.createtable(L, 0, 1) // ... results entry
 		if reply.ok {
 			// already parsed by the qmp package; push it straight through
-			_push_json(L, reply.return_json)
+			_push_json(L, reply.return_json, 0)
 			lua.setfield(L, -2, "return")
 		} else {
 			lua.createtable(L, 0, 2)
@@ -365,11 +365,11 @@ _qmp_events :: proc "c" (L: ^lua.State) -> c.int {
 		// already parsed by the qmp package; walk it straight through
 		if obj, is_obj := ev.payload.(json.Object); is_obj {
 			if data, has := obj["data"]; has {
-				_push_json(L, data)
+				_push_json(L, data, 0)
 				lua.setfield(L, -2, "data")
 			}
 			if ts, has := obj["timestamp"]; has {
-				_push_json(L, ts)
+				_push_json(L, ts, 0)
 				lua.setfield(L, -2, "timestamp")
 			}
 		}

@@ -209,3 +209,50 @@ test_json_loads_malformed_raises :: proc(t: ^testing.T) {
 		log_time_err(t, err)
 	}
 }
+
+// Depth/cycle guards: a cyclic table must raise a Lua error naming the
+// limit, not grow the C stack until the process dies; a DAG (shared
+// subtrees) is NOT a cycle and must keep working; the decode direction is
+// bounded the same way, with the exact boundary pinned.
+@(test)
+test_json_depth_and_cycle_guards :: proc(t: ^testing.T) {
+	v := new()
+	defer close(v)
+	err, ok := run_string(
+		v,
+		`
+		-- cyclic table: must raise, naming the limit
+		local cyc = {}; cyc.self = cyc
+		local ok1, e1 = pcall(makac.json.dumps, cyc)
+		assert(not ok1, "dumps of a cyclic table must raise")
+		assert(tostring(e1):find("nesting exceeds"), tostring(e1))
+
+		-- deep but ACYCLIC: same guard, same error
+		local deep = {}
+		for _ = 1, 100 do deep = { next = deep } end
+		local ok2, e2 = pcall(makac.json.dumps, deep)
+		assert(not ok2 and tostring(e2):find("nesting exceeds"), tostring(e2))
+
+		-- shared subtrees (a DAG): NOT a cycle — must round-trip
+		local shared = { x = 1 }
+		local dag = { a = shared, b = shared }
+		local rt = makac.json.loads(makac.json.dumps(dag))
+		assert(rt.a.x == 1 and rt.b.x == 1, "shared subtrees must encode")
+
+		-- decode: past the bound raises (the string parses; the push
+		-- recursion is what is bounded), at the bound still works
+		local over = ("["):rep(80) .. ("]"):rep(80)
+		local ok3, e3 = pcall(makac.json.loads, over)
+		assert(not ok3 and tostring(e3):find("nesting exceeds"), tostring(e3))
+		local ok4 = pcall(makac.json.loads, ("["):rep(65) .. ("]"):rep(65))
+		assert(not ok4, "65 levels must raise")
+		local ok5 = pcall(makac.json.loads, ("["):rep(64) .. ("]"):rep(64))
+		assert(ok5, "64 levels must decode")
+		`,
+		"@json_depth.lua",
+	)
+	defer delete(err.message)
+	if !testing.expect(t, ok, "expected evaluation to succeed") {
+		log_time_err(t, err)
+	}
+}
