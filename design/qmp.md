@@ -49,11 +49,17 @@ lost, write failed, protocol error — RAISE. A `timeout_s` (default 5)
 elapsing means the VM is unresponsive, and raises too. JSON numbers decode
 with integers staying integers.
 
-Sending a command clears the event buffer first: a new command is the
-declaration that events predating it are not of interest. In a
-multi-command send each command retires the events that preceded it; events
-arriving while a command is in flight are buffered, to be read with
-`poll`/`events` once the send returns.
+Sending a call clears the event buffer once at the start: a new `q:send`
+call is the declaration that events predating it are not of interest. Within
+a single call (a batch of one or more commands), events accumulate for the
+duration of the call — events emitted between commands survive until the
+caller drains them. Events arriving while a command is in flight are buffered,
+to be read with `poll`/`events` once the send returns.
+
+This is what makes a sequence like `drive_add` then `query-block` useful
+as a unit: the BLOCK_IO_ERROR that fires between the two is still buffered
+when the call returns, and the caller can correlate side-effects across
+the batch.
 
 ## The event buffer
 

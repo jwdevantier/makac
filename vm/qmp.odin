@@ -27,8 +27,15 @@ import "../qmp"
 //         { ["return"] = <decoded payload> }               -- on success, or
 //         { error = { class = <string>, desc = <string> } } -- on QMP error
 //       A QMP error reply is DATA (a result entry); transport failures
-//       (connect lost, timeout, ...) raise. Send clears the event buffer
-//       first: a new command retires prior events (qmp.md).
+//       (connect lost, timeout, ...) raise.
+//
+//       Event-buffer discipline is PER CALL: the event buffer is cleared
+//       once at the start of qmp:send, then every command in the batch
+//       APPENDS events rather than resetting. Events emitted between
+//       commands in the batch survive until the caller drains them with
+//       consume. This is what makes a sequence like `drive_add` then
+//       `query-block` useful as a unit: the BLOCK_IO_ERROR that fired
+//       between the two is still buffered when the call returns.
 //   qmp:poll({ timeout_s = }?) -> bool
 //       Drains the socket (timeout is not an error; default 0: no wait),
 //       appends any events to the buffer, and returns whether any arrived.
@@ -274,7 +281,7 @@ _qmp_send :: proc "c" (L: ^lua.State) -> c.int {
 			return c.int(lua.L_error(L, "makac.qmp: send: %s: failed to encode as JSON", cstring(raw_data(path))))
 		}
 
-		reply, serr := qmp.send(&self.client, string(line), timeout)
+		reply, serr := qmp.send(&self.client, string(line), timeout, i == 1)
 		if serr != .None {
 			return c.int(
 				lua.L_error(

@@ -2269,6 +2269,13 @@ _fake_qmp_respond :: proc "c" (conn: posix.FD, cmd: string) {
 		_fake_qmp_write(conn, `{"event":"SPICE_INITIALIZED","data":{}}` + "\n")
 		out = `{"return":{"status":"running","running":true}}`
 	case strings.contains(cmd, "query-block"):
+		// emit an event DURING this command so the multi-command batch test
+		// can assert per-call event-buffer discipline (events from cmd 1
+		// must survive cmd 2)
+		_fake_qmp_write(
+			conn,
+			`{"event":"BLOCK_IO_ERROR","data":{"device":"drive0"}}` + "\n",
+		)
 		out = `{"return":[{"device":"drive0","type":"unknown"}]}`
 	case strings.contains(cmd, "bad-cmd"):
 		out = `{"error":{"class":"CommandNotFound","desc":"The command bad-cmd has not been found"}}`
@@ -2411,6 +2418,17 @@ test_qmp_binding :: proc(t: ^T) {
 		assert(#two == 2, #two)
 		assert(two[1]["return"][1].device == "drive0")
 		assert(two[2]["return"] ~= nil and two[2].error == nil)
+
+		-- per-call event-buffer discipline: the BLOCK_IO_ERROR emitted by the
+		-- fake server during query-block must still be buffered when q:send
+		-- returns, even though the second command ran after it (would be
+		-- wiped by per-command semantics)
+		local batch_evs = q:events()
+		assert(#batch_evs == 1, #batch_evs)
+		assert(batch_evs[1].name == "BLOCK_IO_ERROR")
+		assert(batch_evs[1].data.device == "drive0")
+		q:consume(1)
+		assert(#q:events() == 0)
 
 		-- poll: drain events arriving AFTER the reply; they stay buffered
 		q:send({ { execute = "emit-later" } })

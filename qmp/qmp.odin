@@ -592,14 +592,22 @@ connected :: proc(c: ^Client) -> bool {
 }
 
 /// Send a QMP command (a JSON command line such as `{"execute":"query-status"}`)
-/// and synchronously await its reply. Clears the event buffer first; events that
-/// arrive while waiting are buffered and can be retrieved with `events`.
+/// and synchronously await its reply.
+///
+/// **Event-buffer discipline:** when `clear_events` is `true` (the default)
+/// the event buffer is emptied first; events that arrive while waiting for
+/// the reply are buffered and can be retrieved with `events`. Pass
+/// `clear_events = false` to APPEND events instead — this is what the
+/// Lua-level `qmp:send({A, B})` does for every command after the first, so
+/// events emitted between commands in a batch survive until the caller
+/// drains them.
 ///
 /// A `timeout` elapsed means the VM is unresponsive -> `.Timeout` (a big error).
 send :: proc(
 	c: ^Client,
 	command: string,
 	timeout: time.Duration = 5 * time.Second,
+	clear_events: bool = true,
 ) -> (
 	reply: Reply,
 	err: Error,
@@ -608,7 +616,9 @@ send :: proc(
 		return {}, .Not_Connected
 	}
 
-	_clear_events(c)
+	if clear_events {
+		_clear_events(c)
+	}
 	_clear_last_reply(c)
 
 	// Per-call scratch watermark: frees everything the send (and the
