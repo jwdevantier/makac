@@ -294,6 +294,45 @@ test_spawn_child_detaches_into_its_own_session :: proc(t: ^testing.T) {
 	testing.expect(t, posix.waitpid(pid, &st, {}) == pid, "test child must be reapable after SIGTERM")
 }
 
+when ODIN_OS == .Linux {
+	// MCR-052 regression: a spawned (detached) child closes every inherited
+	// fd above 2 before exec — a long-lived guest must not hold makac's QMP
+	// socket or capture pipes open past the run. /proc/self/fd of the child
+	// lists nothing above the stdio slots plus ls's own directory fd.
+	@(test)
+	test_spawn_child_closes_inherited_fds :: proc(t: ^testing.T) {
+		v := new()
+		defer close(v)
+		err, ok := run_string(
+			v,
+			`
+			local fs = makac.fs
+			local dir = tostring(fs.mktemp_dir("makac_spawn_fdclose"))
+			local p = makac.spawn(
+				{"ls", "/proc/self/fd"},
+				{ stdout = dir .. "/out.log", stderr = dir .. "/err.log" }
+			)
+			local st
+			for i = 1, 2000 do
+				st = p:status()
+				if st ~= "running" then break end
+				makac.time.sleep(10 * makac.time.ns_per_ms)
+			end
+			assert(st ~= "running", "child must exit within 20s")
+			assert(st.code == 0, "ls must succeed, got " .. tostring(st.code))
+			for entry in fs.read_file(dir .. "/out.log"):gmatch("[^\n]+") do
+				local n = tonumber(entry)
+				assert(n and n <= 3, "inherited fd leaked into spawned child: " .. entry)
+			end
+			`,
+		)
+		defer delete(err.message)
+		if !testing.expect(t, ok, "expected evaluation to succeed") {
+			log_time_err(t, err)
+		}
+	}
+}
+
 _Spawn_Op :: enum {
 	EQUAL,
 	GREATER,

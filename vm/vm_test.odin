@@ -147,7 +147,9 @@ test_exec_join_streams :: proc(t: ^T) {
 test_exec_timeout :: proc(t: ^T) {
 	v := new()
 	defer close(v)
-	err, ok := run_string(v, `
+	err, ok := run_string(
+		v,
+		`
 		-- plain timeout: TERM kills sh promptly
 		local started = os.clock()
 		local r = makac.exec({"sh", "-c", "sleep 30"}, { timeout_s = 0.3 })
@@ -173,9 +175,74 @@ test_exec_timeout :: proc(t: ^T) {
 		assert(not ok1 and tostring(e1):find("not be negative"), tostring(e1))
 		local ok2, e2 = pcall(makac.exec, {"true"}, { timeout_s = "soon" })
 		assert(not ok2 and tostring(e2):find("a number"), tostring(e2))
-	`)
+	`,
+	)
 	defer delete(err.message)
 	testing.expect(t, ok, err.message)
+}
+
+// A timed-out run must kill the child's whole process
+// GROUP — a `sh -c "sleep 30 & wait"` step must not orphan its sleep (an
+// orphaned grandchild holding inherited pipe write ends is exactly how a
+// finished run's output never reaches EOF). The grandchild's pid lands in a
+// pidfile before the timeout fires; afterwards pid_alive must flip false
+// (with a grace window: init reaps the orphan asynchronously).
+@(test)
+test_exec_timeout_kills_grandchildren :: proc(t: ^T) {
+	v := new()
+	defer close(v)
+	err, ok := run_string(
+		v,
+		`
+		local fs = makac.fs
+		local dir = tostring(fs.mktemp_dir("makac_exec_gckill"))
+		local pidfile = dir .. "/pid"
+		-- fork a grandchild and wait on it: the timeout's TERM/KILL must
+		-- reach BOTH (the group), not just the shell
+		local r = makac.exec(
+			{"sh", "-c", "sleep 30 & echo $! > '" .. pidfile .. "'; wait"},
+			{ timeout_s = 0.3 }
+		)
+		assert(r.timed_out == true, "timed_out must be set")
+		local pid = tonumber(fs.read_file(pidfile))
+		assert(type(pid) == "number", "pidfile must hold the grandchild pid")
+		-- the group KILL is synchronous with the run's return, but the
+		-- orphan is reaped by init asynchronously: poll pid_alive briefly
+		local deadline = os.clock() + 5
+		while makac.pid_alive(pid) do
+			assert(os.clock() < deadline, "grandchild survived the group kill")
+			makac.time.sleep(50 * makac.time.ns_per_ms)
+		end
+	`,
+	)
+	defer delete(err.message)
+	testing.expect(t, ok, err.message)
+}
+
+when ODIN_OS == .Linux {
+	// An exec'd child closes every inherited fd above 2
+	// before exec — QMP sockets, capture pipes, and the test runner's own
+	// plumbing must not leak into steps. /proc/self/fd of the child lists
+	// nothing above the stdio slots (the one extra entry is the directory ls
+	// itself opened to list them).
+	@(test)
+	test_exec_child_closes_inherited_fds :: proc(t: ^T) {
+		v := new()
+		defer close(v)
+		err, ok := run_string(
+			v,
+			`
+			local r = makac.exec({"ls", "/proc/self/fd"})
+			assert(r.code == 0, r.stdout .. r.stderr)
+			for entry in r.stdout:gmatch("[^\n]+") do
+				local n = tonumber(entry)
+				assert(n and n <= 3, "inherited fd leaked into child: " .. entry)
+			end
+		`,
+		)
+		defer delete(err.message)
+		testing.expect(t, ok, err.message)
+	}
 }
 
 // on_line: complete lines stream to the callback as they arrive, per stream;
@@ -185,7 +252,9 @@ test_exec_timeout :: proc(t: ^T) {
 test_exec_on_line :: proc(t: ^T) {
 	v := new()
 	defer close(v)
-	err, ok := run_string(v, `
+	err, ok := run_string(
+		v,
+		`
 		-- lines per stream, in order; full capture intact regardless
 		local got = {}
 		local r = makac.exec({"sh", "-c", "echo a; echo b >&2; echo c"}, {
@@ -231,7 +300,8 @@ test_exec_on_line :: proc(t: ^T) {
 		-- validation
 		local ok2, e2 = pcall(makac.exec, {"true"}, { on_line = 42 })
 		assert(not ok2 and tostring(e2):find("a function"), tostring(e2))
-	`)
+	`,
+	)
 	defer delete(err.message)
 	testing.expect(t, ok, err.message)
 }
@@ -241,7 +311,9 @@ test_exec_on_line :: proc(t: ^T) {
 test_shell_join_timeout_on_line :: proc(t: ^T) {
 	v := new()
 	defer close(v)
-	err, ok := run_string(v, `
+	err, ok := run_string(
+		v,
+		`
 		-- join via the shell action: true interleave into out.stdout
 		local r = step { uses = "shell", with = {
 			cmd = { "sh", "-c", "echo o1; echo e1 >&2; echo o2" }, join = true,
@@ -269,7 +341,8 @@ test_shell_join_timeout_on_line :: proc(t: ^T) {
 			on_line = function(l) seen[#seen + 1] = l end,
 		} }
 		assert(seen[1] == "l1" and seen[2] == "l2", table.concat(seen, ","))
-	`)
+	`,
+	)
 	defer delete(err.message)
 	testing.expect(t, ok, err.message)
 }
@@ -367,13 +440,16 @@ test_exec_spawn_failure :: proc(t: ^T) {
 test_prelude_available :: proc(t: ^T) {
 	v := new()
 	defer close(v)
-	err, ok := run_string(v, `
+	err, ok := run_string(
+		v,
+		`
 		assert(type(makac.registry) == "table")
 		assert(type(makac.registry.actions) == "table")
 		assert(type(makac.registry.fetchers) == "table")
 		-- prelude preserved Odin-side primitives already under makac
 		assert(type(makac.exec) == "function")
-	`)
+	`,
+	)
 	defer delete(err.message)
 	testing.expect(t, ok, err.message)
 }
@@ -383,7 +459,9 @@ test_prelude_available :: proc(t: ^T) {
 test_action_machinery :: proc(t: ^T) {
 	v := new()
 	defer close(v)
-	err, ok := run_string(v, `
+	err, ok := run_string(
+		v,
+		`
 		makac.define_action("hello", function(with)
 			return { out = { n = (with and with.base or 0) + 42 } }
 		end)
@@ -421,7 +499,8 @@ test_action_machinery :: proc(t: ^T) {
 		local aok, aerr = pcall(makac.run_action, "bad")
 		assert(not aok and tostring(aerr):find("'bad'")
 			and tostring(aerr):find("number"))
-	`)
+	`,
+	)
 	defer delete(err.message)
 	testing.expect(t, ok, err.message)
 }
@@ -431,7 +510,9 @@ test_action_machinery :: proc(t: ^T) {
 test_shell_action :: proc(t: ^T) {
 	v := new()
 	defer close(v)
-	err, ok := run_string(v, `
+	err, ok := run_string(
+		v,
+		`
 		-- echo: stdout captured, code 0, changed always true, err unset
 		local r = makac.run_action("shell", { cmd = {"echo", "yow"} })
 		assert(r.out.stdout == "yow\n" and r.out.code == 0)
@@ -490,7 +571,8 @@ test_shell_action :: proc(t: ^T) {
 		r = makac.run_action("shell", { cmd = {"true"}, target = fake_remote })
 		assert(captured.argv[1] == "true" and captured.opts.shell == nil)
 		fake_remote:close()
-	`)
+	`,
+	)
 	defer delete(err.message)
 	testing.expect(t, ok, err.message)
 }
@@ -502,7 +584,9 @@ test_shell_action :: proc(t: ^T) {
 test_step :: proc(t: ^T) {
 	v := new()
 	defer close(v)
-	err, ok := run_string(v, `
+	err, ok := run_string(
+		v,
+		`
 		-- a custom action proves step calls through the registry machinery
 		local called = 0
 		makac.define_action("touch_counter", function(with)
@@ -545,7 +629,8 @@ test_step :: proc(t: ^T) {
 		assert(not pcall(step, { uses = "shell", with = "nope" }),
 			"with must be a table")
 		assert(not pcall(step, "uses-string"), "spec must be a table")
-	`)
+	`,
+	)
 	defer delete(err.message)
 	testing.expect(t, ok, err.message)
 }
@@ -557,7 +642,9 @@ test_step :: proc(t: ^T) {
 test_facts_action :: proc(t: ^T) {
 	v := new()
 	defer close(v)
-	err, ok := run_string(v, `
+	err, ok := run_string(
+		v,
+		`
 		-- built-in finders by name
 		local f = step { uses = "facts", with = { finders = {
 			os = "os", env = "env" } } }
@@ -605,7 +692,8 @@ test_facts_action :: proc(t: ^T) {
 		vres = step { uses = "facts",
 			with = { finders = { os = "os" }, target = makac.host } }
 		assert(vres.out.facts.os.os == "linux")
-	`)
+	`,
+	)
 	defer delete(err.message)
 	testing.expect(t, ok, err.message)
 }
@@ -623,7 +711,10 @@ test_fetch_over_https :: proc(t: ^T) {
 	v := new(dir)
 	defer close(v)
 
-	err, ok := run_string(v, fmt.tprintf(`
+	err, ok := run_string(
+		v,
+		fmt.tprintf(
+			`
 		local url = "https://example.com/"
 		local prefix = "%s/cache/"
 		local p = makac.fetch(url)
@@ -634,7 +725,10 @@ test_fetch_over_https :: proc(t: ^T) {
 		assert(body:find("Example Domain", 1, true), "unexpected body from example.com")
 		local p2 = makac.fetch(url)  -- cache hit: same slot, no transfer
 		assert(p2 == p, "same URL must return the same cache slot")
-	`, dir))
+	`,
+			dir,
+		),
+	)
 	defer delete(err.message)
 	testing.expect(t, ok, err.message)
 	if !ok {return}
@@ -676,8 +770,8 @@ test_fetch_over_https :: proc(t: ^T) {
 
 Http_Fixture :: struct {
 	ln:   posix.FD,
-	port: u16,     // host byte order
-	resp: string,  // owned (context.allocator); freed by _http_stop
+	port: u16, // host byte order
+	resp: string, // owned (context.allocator); freed by _http_stop
 	th:   ^thread.Thread,
 }
 
@@ -686,7 +780,7 @@ _http_serve :: proc(srv: ^Http_Fixture) {
 	posix.signal(.SIGPIPE, auto_cast posix.SIG_IGN)
 	for {
 		conn := posix.accept(srv.ln, nil, nil)
-		if conn == -1 {return} // listener shut down: we're done
+		if conn == -1 {return} 	// listener shut down: we're done
 		_http_handle(conn, srv.resp)
 	}
 }
@@ -714,11 +808,17 @@ _http_start :: proc(t: ^T, body: string) -> ^Http_Fixture {
 	addr.sin_family = .INET
 	addr.sin_port = 0 // ephemeral
 	addr.sin_addr.s_addr = transmute(u32be)([4]u8{127, 0, 0, 1})
-	testing.expect(t, posix.bind(srv.ln, cast(^posix.sockaddr)&addr, posix.socklen_t(size_of(addr))) == .OK,
-		"http fixture: bind")
+	testing.expect(
+		t,
+		posix.bind(srv.ln, cast(^posix.sockaddr)&addr, posix.socklen_t(size_of(addr))) == .OK,
+		"http fixture: bind",
+	)
 	slen := posix.socklen_t(size_of(posix.sockaddr_in))
-	testing.expect(t, posix.getsockname(srv.ln, cast(^posix.sockaddr)&addr, &slen) == .OK,
-		"http fixture: getsockname")
+	testing.expect(
+		t,
+		posix.getsockname(srv.ln, cast(^posix.sockaddr)&addr, &slen) == .OK,
+		"http fixture: getsockname",
+	)
 	srv.port = u16(u16be(addr.sin_port))
 	testing.expect(t, posix.listen(srv.ln, 4) == .OK, "http fixture: listen")
 	// The response is prebuilt here: the serve thread performs NO allocation
@@ -726,7 +826,9 @@ _http_start :: proc(t: ^T, body: string) -> ^Http_Fixture {
 	// race).
 	srv.resp = fmt.aprintf(
 		"HTTP/1.1 200 OK\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s",
-		len(body), body, allocator = context.allocator,
+		len(body),
+		body,
+		allocator = context.allocator,
 	)
 	srv.th = thread.create_and_start_with_poly_data(srv, _http_serve)
 	return srv
@@ -756,7 +858,11 @@ test_download_primitive :: proc(t: ^T) {
 
 	srv := _http_start(t, "download-marker")
 	defer _http_stop(srv)
-	url := fmt.aprintf("http://127.0.0.1:%d/payload.bin", srv.port, allocator = context.temp_allocator)
+	url := fmt.aprintf(
+		"http://127.0.0.1:%d/payload.bin",
+		srv.port,
+		allocator = context.temp_allocator,
+	)
 	// digest of the served body (hash_file wants a file; any copy will do)
 	pfile := strings.concatenate([]string{dir, "/payload.bin"}, context.temp_allocator)
 	testing.expect(t, os.write_entire_file_from_string(pfile, "download-marker") == nil)
@@ -793,10 +899,13 @@ test_download_primitive :: proc(t: ^T) {
 test_fetch_requires_data_dir :: proc(t: ^T) {
 	v := new()
 	defer close(v)
-	err, ok := run_string(v, `
+	err, ok := run_string(
+		v,
+		`
 		local pok, perr = pcall(makac.fetch, "https://example.com/")
 		assert(not pok and tostring(perr):find("no data directory"), tostring(perr))
-	`)
+	`,
+	)
 	defer delete(err.message)
 	testing.expect(t, ok, err.message)
 }
@@ -819,7 +928,8 @@ test_fetchurl_fetcher :: proc(t: ^T) {
 	// two packages can be cached under two url keys)
 	// fmt.tprintf cannot be used for Lua sources containing braces (Odin's
 	// fmt treats {} as verbs); substitute a placeholder instead
-	fixture_chunk, _ := strings.replace_all(`
+	fixture_chunk, _ := strings.replace_all(
+		`
 		makac.exec({ "mkdir", "-p", "@DIR@/fixtures/pkgroot/lib" })
 		local f = io.open("@DIR@/fixtures/pkgroot/makac.lua", "w")
 		f:write("-- pkg-marker\n"); f:close()
@@ -829,7 +939,11 @@ test_fetchurl_fetcher :: proc(t: ^T) {
 		assert(r.code == 0, r.stderr)
 		r = makac.exec({ "cp", "@DIR@/pkg.tar.gz", "@DIR@/pkg2.tar.gz" })
 		assert(r.code == 0, r.stderr)
-	`, "@DIR@", dir, context.temp_allocator)
+	`,
+		"@DIR@",
+		dir,
+		context.temp_allocator,
+	)
 	err, ok := run_string(v, fixture_chunk)
 	defer delete(err.message)
 	if !testing.expect(t, ok, err.message) {return}
@@ -889,7 +1003,9 @@ test_fetchurl_fetcher :: proc(t: ^T) {
 	pkgs_path := strings.concatenate([]string{dir, "/packages.lua"}, context.temp_allocator)
 	testing.expect(t, os.write_entire_file(pkgs_path, transmute([]u8)pkgs) == nil)
 
-	err2, ok2 := run_string(v, `
+	err2, ok2 := run_string(
+		v,
+		`
 		assert(makac.data_dir ~= nil and makac.data_dir ~= "", "makac.data_dir must be set")
 		assert(makac.fetch_all() == 3)
 		local function readfile(p)
@@ -905,7 +1021,8 @@ test_fetchurl_fetcher :: proc(t: ^T) {
 		-- custom unpacker: ran (its --strip-components=1 drops pkgroot/)
 		local cmk = readfile(makac.data_dir .. "/packages/custompkg/makac.lua")
 		assert(cmk and cmk:find("pkg-marker", 1, true), "custom unpacker output")
-	`)
+	`,
+	)
 	defer delete(err2.message)
 	testing.expect(t, ok2, err2.message)
 }
@@ -923,10 +1040,13 @@ test_fetch_package_list_validation :: proc(t: ^T) {
 	defer close(v)
 
 	// missing packages.lua
-	err, ok := run_string(v, `
+	err, ok := run_string(
+		v,
+		`
 		local ok, e = pcall(makac.fetch_all)
 		assert(not ok and tostring(e):find("no package list found"), tostring(e))
-	`)
+	`,
+	)
 	defer delete(err.message)
 	if !testing.expect(t, ok, err.message) {return}
 
@@ -974,10 +1094,7 @@ test_fetch_package_list_validation :: proc(t: ^T) {
 		local r = makac.exec({ "mkdir", "-p", dest })
 		assert(r.code == 0)
 	end, with = { greet = "hi" } } }`
-	testing.expect(
-		t,
-		os.write_entire_file(pkgs_path, transmute([]u8)fn_src) == nil,
-	)
+	testing.expect(t, os.write_entire_file(pkgs_path, transmute([]u8)fn_src) == nil)
 	ferr2, fok2 := run_string(
 		v,
 		`assert(makac.fetch_all() == 1)
@@ -995,7 +1112,9 @@ test_fetch_package_list_validation :: proc(t: ^T) {
 test_fetchurl_arg_validation :: proc(t: ^T) {
 	v := new()
 	defer close(v)
-	err, ok := run_string(v, `
+	err, ok := run_string(
+		v,
+		`
 		local fu = makac.registry.fetchers.fetchurl
 		assert(type(fu) == "function", "fetchurl must be a built-in fetcher")
 		-- spec contract: full entry; 'with' is required
@@ -1017,7 +1136,8 @@ test_fetchurl_arg_validation :: proc(t: ^T) {
 		assert(not ok and tostring(e):find("with.unpacker"), tostring(e))
 		ok, e = pcall(fu, { id = "x", with = { url = "u", sha256 = sha, unpacker = "zip" } }, "/tmp/whatever")
 		assert(not ok and tostring(e):find("unpacker"), tostring(e))
-	`)
+	`,
+	)
 	defer delete(err.message)
 	testing.expect(t, ok, err.message)
 }
@@ -1037,7 +1157,8 @@ test_fetchgit_fetcher :: proc(t: ^T) {
 
 	// build a fixture repo: branch main has "main-marker", branch dev has
 	// "dev-marker" in makac.lua
-	chunk, _ := strings.replace_all(`
+	chunk, _ := strings.replace_all(
+		`
 		makac.exec({ "mkdir", "-p", "@DIR@/repo" })
 		local function git(...)
 			local argv = { "git", "-C", "@DIR@/repo", ... }
@@ -1059,7 +1180,11 @@ test_fetchgit_fetcher :: proc(t: ^T) {
 		sh("echo dev-marker > @DIR@/repo/makac.lua")
 		git("commit", "-qam", "dev commit")
 		git("checkout", "-q", "main")
-	`, "@DIR@", dir, context.temp_allocator)
+	`,
+		"@DIR@",
+		dir,
+		context.temp_allocator,
+	)
 	err, ok := run_string(v, chunk)
 	defer delete(err.message)
 	if !testing.expect(t, ok, err.message) {return}
@@ -1073,7 +1198,10 @@ test_fetchgit_fetcher :: proc(t: ^T) {
 	pkgs_path := strings.concatenate([]string{dir, "/packages.lua"}, context.temp_allocator)
 	testing.expect(t, os.write_entire_file_from_string(pkgs_path, pkgs) == nil)
 
-	err2, ok2 := run_string(v, fmt.tprintf(`
+	err2, ok2 := run_string(
+		v,
+		fmt.tprintf(
+			`
 		assert(makac.fetch_all() == 2)
 		local function readfile(p)
 			local f = io.open(p, "r"); if not f then return nil end
@@ -1105,18 +1233,29 @@ test_fetchgit_fetcher :: proc(t: ^T) {
 		assert(makac.fetch_all() == 2)
 		assert(readfile(makac.data_dir .. "/packages/devpkg/makac.lua"):find("dev%%-marker"),
 			"re-fetch keeps dev content")
-	`, dir, dir))
+	`,
+			dir,
+			dir,
+		),
+	)
 	defer delete(err2.message)
 	testing.expect(t, ok2, err2.message)
 
 	// bad ref is a clear error naming the ref
-	err3, ok3 := run_string(v, fmt.tprintf(`
+	err3, ok3 := run_string(
+		v,
+		fmt.tprintf(
+			`
 		local ok, e = pcall(makac.registry.fetchers.fetchgit,
 			{{ id = "badref", fetcher = "fetchgit",
 			   with = {{ url = "%s/repo", rev = "no-such-branch" }} }},
 			"%s/packages/badref")
 		assert(not ok and tostring(e):find("no-such-branch", 1, true), tostring(e))
-	`, dir, dir))
+	`,
+			dir,
+			dir,
+		),
+	)
 	defer delete(err3.message)
 	testing.expect(t, ok3, err3.message)
 }
@@ -1127,7 +1266,9 @@ test_fetchgit_fetcher :: proc(t: ^T) {
 test_fetchgit_arg_validation :: proc(t: ^T) {
 	v := new()
 	defer close(v)
-	err, ok := run_string(v, `
+	err, ok := run_string(
+		v,
+		`
 		local fg = makac.registry.fetchers.fetchgit
 		assert(type(fg) == "function", "fetchgit must be a built-in fetcher")
 		local ok, e = pcall(fg, { id = "some-local-pkg" }, "/tmp/whatever")
@@ -1141,7 +1282,8 @@ test_fetchgit_arg_validation :: proc(t: ^T) {
 		-- error level: the message starts with "fetchgit:", not some line number
 		ok, e = pcall(fg, 42, "/tmp/whatever")
 		assert(not ok, tostring(e))
-	`)
+	`,
+	)
 	defer delete(err.message)
 	testing.expect(t, ok, err.message)
 }
@@ -1228,7 +1370,9 @@ test_host_target :: proc(t: ^T) {
 	// host-close above cannot disturb it.
 	v2 := new(dir)
 	defer close(v2)
-	err2, ok2 := run_string(v2, `
+	err2, ok2 := run_string(
+		v2,
+		`
 		-- spec.target reaches the action as with.target
 		local seen
 		makac.define_action("peek", function(with)
@@ -1264,7 +1408,8 @@ test_host_target :: proc(t: ^T) {
 			if tg == cust then found = true end
 		end
 		assert(found)
-	`)
+	`,
+	)
 	defer delete(err2.message)
 	testing.expect(t, ok2, err2.message)
 }
@@ -1291,15 +1436,18 @@ test_ssh_target :: proc(t: ^T) {
 		"#!/bin/sh\n" +
 		"line=''; for a in \"$@\"; do line=\"$line<$a>\"; done\n" +
 		"printf '%s\\n' \"$line\" >> \"$STUB_LOG\"\n" +
-		"cat >/dev/null 2>&1 || true\n" + // drain stdin so makac's stdin write never blocks
-		"printf 'stub-stdout\\n'\n" +
+		"cat >/dev/null 2>&1 || true\n" +
+		"printf 'stub-stdout\\n'\n" +// drain stdin so makac's stdin write never blocks
 		"printf 'stub-stderr\\n' >&2\n" +
 		"exit \"${STUB_EXIT:-0}\"\n"
 	names := [?]string{"ssh", "scp"}
 	for name in names {
 		p := fmt.tprintf("%s/%s", stub_dir, name)
 		e := os.write_entire_file_from_string(
-			p, stub_script, os.Permissions_Read_Write_All + os.Permissions_Execute_All)
+			p,
+			stub_script,
+			os.Permissions_Read_Write_All + os.Permissions_Execute_All,
+		)
 		testing.expectf(t, e == nil, "write stub %s: %s", p, os.error_string(e))
 	}
 	old_path := os.get_env_alloc("PATH", context.temp_allocator)
@@ -1350,7 +1498,7 @@ test_ssh_target :: proc(t: ^T) {
 	chunk, _ := strings.replace_all(tmpl, "@BASE@", base, context.temp_allocator)
 	err, ok := run_string(v, chunk)
 	defer delete(err.message)
-	if !testing.expect(t, ok, err.message) { return }
+	if !testing.expect(t, ok, err.message) {return}
 
 	// -- what the stubs actually received -----------------------------------------
 	log: []u8
@@ -1360,32 +1508,71 @@ test_ssh_target :: proc(t: ^T) {
 	all_lines := strings.split(string(log), "\n", context.temp_allocator)
 	lines := make([dynamic]string, context.temp_allocator)
 	for ln in all_lines {
-		if strings.contains(ln, data_dir) { append(&lines, ln) }
+		if strings.contains(ln, data_dir) {append(&lines, ln)}
 	}
 	// 1: tgt:run({"grep","needle"}) — quoted join, config under the target's
 	//    own state dir, right port, localhost transport target
 	// (the stub records "$@" only, so the program name itself is not logged)
-	expect_args(t, lines[0], {"-F", "@CFG", "-p", "2222", "localhost", "grep needle"},
-		data_dir)
+	expect_args(t, lines[0], {"-F", "@CFG", "-p", "2222", "localhost", "grep needle"}, data_dir)
 	// 2: the shell-action step: cd prepended, then /bin/bash -c '<env> <argv>'
 	//    with 'some one' single-quoted
-	expect_args(t, lines[1], {"-F", "@CFG", "-p", "2222", "localhost",
-		"cd /work/dir && /bin/bash -c 'NAME='\\''some one'\\'' make greeter'"},
-		data_dir)
+	expect_args(
+		t,
+		lines[1],
+		{
+			"-F",
+			"@CFG",
+			"-p",
+			"2222",
+			"localhost",
+			"cd /work/dir && /bin/bash -c 'NAME='\\''some one'\\'' make greeter'",
+		},
+		data_dir,
+	)
 	// 3: scp put file: no -r; 4: scp put dir: -r; 5: scp get: -r
-	expect_args(t, lines[2], {"-F", "@CFG", "-P", "2222", "@BASE/payload.txt", "localhost:up/there.txt"}, data_dir)
-	expect_args(t, lines[3], {"-F", "@CFG", "-P", "2222", "-r", "@BASE/indir", "localhost:up/dir"}, data_dir)
-	expect_args(t, lines[4], {"-F", "@CFG", "-P", "2222", "-r", "localhost:down/src.txt", "@BASE/got.txt"}, data_dir)
-	testing.expect(t, len(lines) == 5, fmt.tprintf("expected exactly 5 invocations, got %d", len(lines)))
+	expect_args(
+		t,
+		lines[2],
+		{"-F", "@CFG", "-P", "2222", "@BASE/payload.txt", "localhost:up/there.txt"},
+		data_dir,
+	)
+	expect_args(
+		t,
+		lines[3],
+		{"-F", "@CFG", "-P", "2222", "-r", "@BASE/indir", "localhost:up/dir"},
+		data_dir,
+	)
+	expect_args(
+		t,
+		lines[4],
+		{"-F", "@CFG", "-P", "2222", "-r", "localhost:down/src.txt", "@BASE/got.txt"},
+		data_dir,
+	)
+	testing.expect(
+		t,
+		len(lines) == 5,
+		fmt.tprintf("expected exactly 5 invocations, got %d", len(lines)),
+	)
 
 	// -- generated ssh config -------------------------------------------------------
 	cfg_path := fmt.tprintf("%s/targets/vm1/ssh.conf", data_dir)
 	cfg, cerr := os.read_entire_file(cfg_path, context.temp_allocator)
 	testing.expectf(t, cerr == nil, "config file must exist at %s", cfg_path)
-	wants := [?]string{"HostName 192.0.2.1", "User root", "ControlMaster auto",
-		"ControlPersist 10m", "IdentityFile ~/.k/id"}
+	wants := [?]string {
+		"HostName 192.0.2.1",
+		"User root",
+		"ControlMaster auto",
+		"ControlPersist 10m",
+		"IdentityFile ~/.k/id",
+	}
 	for want in wants {
-		testing.expectf(t, strings.contains(string(cfg), want), "config missing '%s' in:\n%s", want, cfg)
+		testing.expectf(
+			t,
+			strings.contains(string(cfg), want),
+			"config missing '%s' in:\n%s",
+			want,
+			cfg,
+		)
 	}
 	// ControlPath rewritten absolute, inside the target's own control dir
 	ctl := fmt.tprintf("ControlPath %s/targets/vm1/ssh/ctl", data_dir)
@@ -1395,7 +1582,9 @@ test_ssh_target :: proc(t: ^T) {
 	posix.setenv("STUB_EXIT", "42", true)
 	v2 := new(data_dir)
 	defer close(v2)
-	err2, ok2 := run_string(v2, `
+	err2, ok2 := run_string(
+		v2,
+		`
 		local tgt = makac.new_ssh_target("vm2", { host = "h", user = "u" })
 		local res = tgt:run({"false"})
 		assert(res.code == 42, res.code) -- data, not error
@@ -1413,7 +1602,8 @@ test_ssh_target :: proc(t: ^T) {
 		assert(not cok and tostring(cerr):find("closed"), tostring(cerr))
 		cok, cerr = pcall(function() tgt:put("a", "b") end)
 		assert(not cok and tostring(cerr):find("closed"), tostring(cerr))
-	`)
+	`,
+	)
 	defer delete(err2.message)
 	testing.expect(t, ok2, err2.message)
 
@@ -1436,23 +1626,40 @@ test_ssh_target :: proc(t: ^T) {
 expect_args :: proc(t: ^testing.T, line: string, want: []string, data_dir: string) {
 	// tokens: split on '><', strip the brackets
 	parts := strings.split(line, "><", context.temp_allocator)
-	if !testing.expectf(t, len(parts) == len(want),
-		"expected %d args, got '%s'", len(want), line) { return }
+	if !testing.expectf(
+		t,
+		len(parts) == len(want),
+		"expected %d args, got '%s'",
+		len(want),
+		line,
+	) {return}
 	for w, i in want {
 		got := parts[i]
 		got = strings.trim_prefix(got, "<")
 		got = strings.trim_suffix(got, ">")
 		exp := w
 		if exp == "@CFG" {
-			testing.expectf(t, strings.has_suffix(got, ".makac/targets/vm1/ssh.conf") ||
+			testing.expectf(
+				t,
+				strings.has_suffix(got, ".makac/targets/vm1/ssh.conf") ||
 				strings.has_prefix(got, data_dir),
-				"arg %d: expected generated config path, got '%s'", i, got)
+				"arg %d: expected generated config path, got '%s'",
+				i,
+				got,
+			)
 			continue
 		}
 		if strings.has_prefix(exp, "@BASE") {
 			exp = strings.trim_prefix(exp, "@BASE")
 			// caller passed base-relative; absolute check happens via suffix
-			testing.expectf(t, strings.has_suffix(got, exp), "arg %d: expected suffix '%s', got '%s'", i, exp, got)
+			testing.expectf(
+				t,
+				strings.has_suffix(got, exp),
+				"arg %d: expected suffix '%s', got '%s'",
+				i,
+				exp,
+				got,
+			)
 			continue
 		}
 		testing.expectf(t, got == exp, "arg %d: expected '%s', got '%s'", i, exp, got)
@@ -1470,7 +1677,9 @@ test_ssh_target_construction :: proc(t: ^T) {
 
 	v := new(dir)
 	defer close(v)
-	err, ok := run_string(v, `
+	err, ok := run_string(
+		v,
+		`
 		-- defaults: port 22; name is the required positional argument
 		local tgt = makac.new_ssh_target("a.b-c_d", { host = "h", user = "u" })
 		assert(tgt.kind == "remote" and tgt.name == "a.b-c_d")
@@ -1492,17 +1701,21 @@ test_ssh_target_construction :: proc(t: ^T) {
 			assert(not cok and tostring(cerr):find(c[3], 1, true),
 				tostring(cerr) .. " ~ " .. c[3])
 		end
-	`)
+	`,
+	)
 	defer delete(err.message)
 	testing.expect(t, ok, err.message)
 
 	// a data-dir-less VM must refuse ssh target creation with a clear error
 	v2 := new()
 	defer close(v2)
-	err2, ok2 := run_string(v2, `
+	err2, ok2 := run_string(
+		v2,
+		`
 		local cok, cerr = pcall(makac.new_ssh_target, "n", { host = "h", user = "u" })
 		assert(not cok and tostring(cerr):find("data directory"), tostring(cerr))
-	`)
+	`,
+	)
 	defer delete(err2.message)
 	testing.expect(t, ok2, err2.message)
 }
@@ -1514,7 +1727,9 @@ test_ssh_target_construction :: proc(t: ^T) {
 test_target_wiring :: proc(t: ^T) {
 	v := new()
 	defer close(v)
-	err, ok := run_string(v, `
+	err, ok := run_string(
+		v,
+		`
 		-- shell with an EXPLICIT host target works like the default
 		local r = step { uses = "shell", with = { target = makac.host, cmd = {"echo", "hi"} } }
 		assert(r.out.code == 0 and r.out.stdout == "hi\n")
@@ -1578,7 +1793,8 @@ test_target_wiring :: proc(t: ^T) {
 		makac.close_all_targets()
 		assert(closed_marks == 1, closed_marks)
 		assert(c1._closed and c2._closed)
-	`)
+	`,
+	)
 	defer delete(err.message)
 	testing.expect(t, ok, err.message)
 	// vm.call_named: missing path -> not called, no error; existing function
@@ -1589,7 +1805,10 @@ test_target_wiring :: proc(t: ^T) {
 	testing.expect(t, !called && cerr.message == "")
 	called, cerr = call_named(v2, "makac.no.such.path")
 	testing.expect(t, !called && cerr.message == "")
-	e3, ok3 := run_string(v2, "function _boom() error('teardown went wrong') end mark_a=0 mark_b=0")
+	e3, ok3 := run_string(
+		v2,
+		"function _boom() error('teardown went wrong') end mark_a=0 mark_b=0",
+	)
 	defer delete(e3.message)
 	testing.expect(t, ok3, e3.message)
 	called, cerr = call_named(v2, "_boom")
@@ -1620,7 +1839,7 @@ test_listdir :: proc(t: ^T) {
 	v := new()
 	defer close(v)
 	lua_src := strings.concatenate(
-		[]string{
+		[]string {
 			`local es, err = makac.listdir("`,
 			dir,
 			`")
@@ -1652,23 +1871,48 @@ test_load_packages_and_pkgs_searcher :: proc(t: ^T) {
 	dir, derr := os.make_directory_temp("", "makac_vm_pkgs_*", context.allocator)
 	testing.expect(t, derr == nil, "temp dir")
 	defer os.remove_all(dir)
-	testing.expect(t, os.make_directory_all(
-		strings.concatenate([]string{dir, "/packages/demo/lib"}, context.temp_allocator)) == nil)
-	testing.expect(t, os.write_entire_file_from_string(
-		strings.concatenate([]string{dir, "/packages.lua"}, context.temp_allocator),
-		`-- fetchgit entry; the fetch itself is not under test here, only loading
-return { { id = "demo", fetcher = "fetchgit", with = { url = "unused" } } }`) == nil)
-	testing.expect(t, os.write_entire_file_from_string(
-		strings.concatenate([]string{dir, "/packages/demo/lib/util.lua"}, context.temp_allocator),
-		`return { hello = function() return "pkg-lib-ok" end }`) == nil)
-	testing.expect(t, os.write_entire_file_from_string(
-		strings.concatenate([]string{dir, "/packages/demo/makac.lua"}, context.temp_allocator),
-		`return { actions = { thing = function(w) return { out = { did = "thing" } } end },
-  fetchers = { fetchio = function(spec, dest) end } }`) == nil)
+	testing.expect(
+		t,
+		os.make_directory_all(
+			strings.concatenate([]string{dir, "/packages/demo/lib"}, context.temp_allocator),
+		) ==
+		nil,
+	)
+	testing.expect(
+		t,
+		os.write_entire_file_from_string(
+			strings.concatenate([]string{dir, "/packages.lua"}, context.temp_allocator),
+			`-- fetchgit entry; the fetch itself is not under test here, only loading
+return { { id = "demo", fetcher = "fetchgit", with = { url = "unused" } } }`,
+		) ==
+		nil,
+	)
+	testing.expect(
+		t,
+		os.write_entire_file_from_string(
+			strings.concatenate(
+				[]string{dir, "/packages/demo/lib/util.lua"},
+				context.temp_allocator,
+			),
+			`return { hello = function() return "pkg-lib-ok" end }`,
+		) ==
+		nil,
+	)
+	testing.expect(
+		t,
+		os.write_entire_file_from_string(
+			strings.concatenate([]string{dir, "/packages/demo/makac.lua"}, context.temp_allocator),
+			`return { actions = { thing = function(w) return { out = { did = "thing" } } end },
+  fetchers = { fetchio = function(spec, dest) end } }`,
+		) ==
+		nil,
+	)
 
 	v := new(dir)
 	defer close(v)
-	err, ok := run_string(v, `
+	err, ok := run_string(
+		v,
+		`
 assert(makac.load_packages() == 1)
 local util = require("pkgs:demo/util")
 assert(util.hello() == "pkg-lib-ok")
@@ -1677,7 +1921,9 @@ assert(r.out.did == "thing")
 assert(type(makac.registry.fetchers["demo:fetchio"]) == "function")
 local ok2, err2 = pcall(require, "pkgs:demo/missing")
 assert(not ok2 and err2:find("module 'pkgs:demo/missing' not found"), tostring(err2))
-`, "test_load_packages")
+`,
+		"test_load_packages",
+	)
 	if !ok {delete(err.message)}
 	testing.expect(t, ok, "load_packages + pkgs: searcher must work in-VM")
 }
@@ -1693,17 +1939,34 @@ test_filesystem_fetcher_in_place :: proc(t: ^T) {
 	testing.expect(t, rerr == nil, "temp root")
 	defer os.remove_all(root)
 	defer delete(root, context.allocator)
-	testing.expect(t, os.make_directory_all(
-		strings.concatenate([]string{root, "/.makac"}, context.temp_allocator)) == nil)
+	testing.expect(
+		t,
+		os.make_directory_all(
+			strings.concatenate([]string{root, "/.makac"}, context.temp_allocator),
+		) ==
+		nil,
+	)
 	devpkg := strings.concatenate([]string{root, "/devpkg"}, context.temp_allocator)
-	testing.expect(t, os.make_directory_all(
-		strings.concatenate([]string{devpkg, "/lib"}, context.temp_allocator)) == nil)
-	testing.expect(t, os.write_entire_file_from_string(
-		strings.concatenate([]string{devpkg, "/lib/util.lua"}, context.temp_allocator),
-		`return { VAL = "in-place-v1" }`) == nil)
-	testing.expect(t, os.write_entire_file_from_string(
-		strings.concatenate([]string{devpkg, "/makac.lua"}, context.temp_allocator),
-		`-- a package may require its own lib/ while loading
+	testing.expect(
+		t,
+		os.make_directory_all(
+			strings.concatenate([]string{devpkg, "/lib"}, context.temp_allocator),
+		) ==
+		nil,
+	)
+	testing.expect(
+		t,
+		os.write_entire_file_from_string(
+			strings.concatenate([]string{devpkg, "/lib/util.lua"}, context.temp_allocator),
+			`return { VAL = "in-place-v1" }`,
+		) ==
+		nil,
+	)
+	testing.expect(
+		t,
+		os.write_entire_file_from_string(
+			strings.concatenate([]string{devpkg, "/makac.lua"}, context.temp_allocator),
+			`-- a package may require its own lib/ while loading
 local util = require("pkgs:mypkg.dev/util")
 return {
   actions = { dev_hello = function(w) return { out = { v = util.VAL } } end },
@@ -1714,22 +1977,31 @@ return {
     f:write("fetched-by-mypkg.dev:devmark")
     f:close()
   end },
-}`) == nil)
+}`,
+		) ==
+		nil,
+	)
 	// where the in-chunk fetcher invocation writes its marker
 	marker_dir := strings.concatenate([]string{root, "/fetchdest"}, context.temp_allocator)
 	testing.expect(t, os.make_directory(marker_dir) == nil)
 	// relative path: resolved against the project root (dir holding .makac)
-	testing.expect(t, os.write_entire_file_from_string(
-		strings.concatenate([]string{root, "/.makac/packages.lua"}, context.temp_allocator),
-		`return { { id = "mypkg.dev", fetcher = "filesystem", with = { path = "devpkg" } } }`) == nil)
+	testing.expect(
+		t,
+		os.write_entire_file_from_string(
+			strings.concatenate([]string{root, "/.makac/packages.lua"}, context.temp_allocator),
+			`return { { id = "mypkg.dev", fetcher = "filesystem", with = { path = "devpkg" } } }`,
+		) ==
+		nil,
+	)
 
 	data_dir := strings.concatenate([]string{root, "/.makac"}, context.temp_allocator)
 	util_path := strings.concatenate([]string{devpkg, "/lib/util.lua"}, context.temp_allocator)
 	v := new(data_dir)
 	defer close(v)
-	lua_src := strings.concatenate([]string{
-		// NOTE: NOT fmt.tprintf — Odin fmt eats Lua's {} table constructors!
-		`
+	lua_src := strings.concatenate(
+		[]string {
+			// NOTE: NOT fmt.tprintf — Odin fmt eats Lua's {} table constructors!
+			`
 -- 'fetch' is pure validation for filesystem packages (nothing copied)
 assert(makac.fetch_all() == 1)
 -- package loads from the SOURCE path: makac.pkg_dirs points at devpkg
@@ -1747,44 +2019,70 @@ assert(util.VAL == "in-place-v1")
 -- package-provided FETCHER: registered under '<id>:<name>' and callable
 local f = makac.registry.fetchers["mypkg.dev:devmark"]
 assert(type(f) == "function", "filesystem package's fetcher must be in the registry")
-f({ id = "anything" }, "`, marker_dir, `") -- fetcher signature: (spec, dest)
-local mf = assert(io.open("`, marker_dir, `/marker.txt", "r"))
+f({ id = "anything" }, "`,
+			marker_dir,
+			`") -- fetcher signature: (spec, dest)
+local mf = assert(io.open("`,
+			marker_dir,
+			`/marker.txt", "r"))
 assert(mf:read("a") == "fetched-by-mypkg.dev:devmark")
 mf:close()
 `,
-	}, context.temp_allocator)
+		},
+		context.temp_allocator,
+	)
 	err, ok := run_string(v, lua_src, "test_filesystem_fetcher_in_place")
 	if !ok {fmt.eprintln(err.message); delete(err.message)}
 	testing.expect(t, ok, "filesystem package must load in place")
 	if !ok {return}
 
 	// edit the lib module, fresh VM: the edit is live, no refetch
-	testing.expect(t, os.write_entire_file_from_string(util_path, `return { VAL = "in-place-v2" }`) == nil)
+	testing.expect(
+		t,
+		os.write_entire_file_from_string(util_path, `return { VAL = "in-place-v2" }`) == nil,
+	)
 	v2 := new(data_dir)
 	defer close(v2)
-	err2, ok2 := run_string(v2, `
+	err2, ok2 := run_string(
+		v2,
+		`
 assert(makac.load_packages() == 1)
 package.loaded["pkgs:mypkg.dev/util"] = nil
 local util = require("pkgs:mypkg.dev/util")
 assert(util.VAL == "in-place-v2", "edits must be picked up in place, got " .. tostring(util.VAL))
-`, "test_filesystem_edit")
+`,
+		"test_filesystem_edit",
+	)
 	if !ok2 {delete(err2.message)}
 	testing.expect(t, ok2, "edit must be picked up without refetching")
 
 	// and the same holds with an ABSOLUTE with.path
-	testing.expect(t, os.write_entire_file_from_string(
-		strings.concatenate([]string{root, "/.makac/packages.lua"}, context.temp_allocator),
-		strings.concatenate([]string{
-			`return { { id = "mypkg.dev", fetcher = "filesystem", with = { path = "`,
-			devpkg,
-			`" } } }`}, context.temp_allocator)) == nil)
+	testing.expect(
+		t,
+		os.write_entire_file_from_string(
+			strings.concatenate([]string{root, "/.makac/packages.lua"}, context.temp_allocator),
+			strings.concatenate(
+				[]string {
+					`return { { id = "mypkg.dev", fetcher = "filesystem", with = { path = "`,
+					devpkg,
+					`" } } }`,
+				},
+				context.temp_allocator,
+			),
+		) ==
+		nil,
+	)
 	v3 := new(data_dir)
 	defer close(v3)
-	err3, ok3 := run_string(v3, `
+	err3, ok3 := run_string(
+		v3,
+		`
 assert(makac.load_packages() == 1)
 local r = makac.run_action("mypkg.dev:dev_hello", nil)
 assert(r.out.v == "in-place-v2")
-`, "test_filesystem_abs")
+`,
+		"test_filesystem_abs",
+	)
 	if !ok3 {delete(err3.message)}
 	testing.expect(t, ok3, "absolute with.path must work")
 }
@@ -1797,48 +2095,73 @@ test_filesystem_fetcher_errors :: proc(t: ^T) {
 	testing.expect(t, rerr == nil, "temp root")
 	defer os.remove_all(root)
 	defer delete(root, context.allocator)
-	testing.expect(t, os.make_directory_all(
-		strings.concatenate([]string{root, "/.makac"}, context.temp_allocator)) == nil)
+	testing.expect(
+		t,
+		os.make_directory_all(
+			strings.concatenate([]string{root, "/.makac"}, context.temp_allocator),
+		) ==
+		nil,
+	)
 
 	write_pkgs := proc(root: string, body: string) {
 		_ = os.write_entire_file_from_string(
-			strings.concatenate([]string{root, "/.makac/packages.lua"}, context.temp_allocator), body)
+			strings.concatenate([]string{root, "/.makac/packages.lua"}, context.temp_allocator),
+			body,
+		)
 	}
 	data_dir := strings.concatenate([]string{root, "/.makac"}, context.temp_allocator)
 
 	// missing with.path
 	write_pkgs(root, `return { { id = "bad", fetcher = "filesystem" } }`)
 	v := new(data_dir)
-	err, ok := run_string(v, `
+	err, ok := run_string(
+		v,
+		`
 local ok1, e1 = pcall(makac.load_packages)
 assert(not ok1 and e1:find("with.path", 1, true), tostring(e1))
 local ok2, e2 = pcall(makac.fetch_all)
 assert(not ok2 and e2:find("with.path", 1, true), tostring(e2))
-`, "missing with.path")
+`,
+		"missing with.path",
+	)
 	if !ok {delete(err.message)}
 	testing.expect(t, ok, "missing with.path must error clearly")
 	close(v)
 
 	// path does not exist
-	write_pkgs(root, `return { { id = "bad", fetcher = "filesystem", with = { path = "no-such-pkg" } } }`)
+	write_pkgs(
+		root,
+		`return { { id = "bad", fetcher = "filesystem", with = { path = "no-such-pkg" } } }`,
+	)
 	v2 := new(data_dir)
-	err2, ok2 := run_string(v2, `
+	err2, ok2 := run_string(
+		v2,
+		`
 local ok1, e1 = pcall(makac.load_packages)
 assert(not ok1 and e1:find("no-such-pkg", 1, true) and e1:find("not a directory", 1, true), tostring(e1))
 local ok2, e2 = pcall(makac.fetch_all)
 assert(not ok2 and e2:find("no-such-pkg", 1, true), tostring(e2))
-`, "nonexistent path")
+`,
+		"nonexistent path",
+	)
 	if !ok2 {fmt.eprintln(err2.message); delete(err2.message)}
 	testing.expect(t, ok2, "nonexistent path must error clearly")
 	close(v2)
 
 	// listed but not fetched (non-filesystem): clear 'makac fetch' hint
-	write_pkgs(root, `return { { id = "ghost", fetcher = "fetchgit", with = { url = "unused" } } }`)
+	write_pkgs(
+		root,
+		`return { { id = "ghost", fetcher = "fetchgit", with = { url = "unused" } } }`,
+	)
 	v3 := new(data_dir)
-	err3, ok3 := run_string(v3, `
+	err3, ok3 := run_string(
+		v3,
+		`
 local ok1, e1 = pcall(makac.load_packages)
 assert(not ok1 and e1:find("ghost", 1, true) and e1:find("makac fetch", 1, true), tostring(e1))
-`, "not fetched")
+`,
+		"not fetched",
+	)
 	if !ok3 {delete(err3.message)}
 	testing.expect(t, ok3, "not-yet-fetched package must tell the user to fetch")
 	close(v3)
@@ -1862,7 +2185,9 @@ test_ssh_session_object :: proc(t: ^T) {
 	testing.expect(t, os.make_directory(data_dir) == nil)
 
 	v := new(data_dir)
-	err, ok := run_string(v, `
+	err, ok := run_string(
+		v,
+		`
 		local sess = assert(makac.ssh_open("obj", {
 			host = "h", user = "u", port = 2223,
 		}))
@@ -1896,12 +2221,13 @@ test_ssh_session_object :: proc(t: ^T) {
 		local leaked = makac.ssh_open("leaked", { host = "h", user = "u" })
 		leaked = nil
 		collectgarbage("collect")
-	`)
+	`,
+	)
 	// __gc for `leaked` runs at latest when the VM closes — must not crash
 	close(v)
 	testing.expect(t, ok, err.message)
-	if !ok { delete(err.message) }
-	if !ok { return }
+	if !ok {delete(err.message)}
+	if !ok {return}
 
 	// config was generated for the named session's state dir
 	cfg := fmt.tprintf("%s/targets/obj/ssh.conf", data_dir)
@@ -1935,7 +2261,11 @@ _fake_qmp_respond :: proc "c" (conn: posix.FD, cmd: string) {
 	case strings.contains(cmd, "qmp_capabilities"):
 		out = `{"return":{}}`
 	case strings.contains(cmd, "query-status"):
-		_fake_qmp_write(conn, `{"event":"RTC_CHANGE","data":{"offset":1},"timestamp":{"seconds":1,"microseconds":2}}` + "\n")
+		_fake_qmp_write(
+			conn,
+			`{"event":"RTC_CHANGE","data":{"offset":1},"timestamp":{"seconds":1,"microseconds":2}}` +
+			"\n",
+		)
 		_fake_qmp_write(conn, `{"event":"SPICE_INITIALIZED","data":{}}` + "\n")
 		out = `{"return":{"status":"running","running":true}}`
 	case strings.contains(cmd, "query-block"):
@@ -1945,7 +2275,11 @@ _fake_qmp_respond :: proc "c" (conn: posix.FD, cmd: string) {
 	case strings.contains(cmd, "emit-later"):
 		_fake_qmp_write(conn, `{"return":{}}` + "\n")
 		time.sleep(60 * time.Millisecond)
-		_fake_qmp_write(conn, `{"event":"RESET","data":{"guest":true},"timestamp":{"seconds":3,"microseconds":4}}` + "\n")
+		_fake_qmp_write(
+			conn,
+			`{"event":"RESET","data":{"guest":true},"timestamp":{"seconds":3,"microseconds":4}}` +
+			"\n",
+		)
 		_fake_qmp_write(conn, `{"event":"SHUTDOWN","data":{"guest":false}}` + "\n")
 		return
 	case strings.contains(cmd, "hang"):
@@ -1964,14 +2298,18 @@ _fake_qmp_serve :: proc(srv: ^Fake_QMP) {
 	posix.signal(.SIGPIPE, auto_cast posix.SIG_IGN)
 	for {
 		conn := posix.accept(srv.ln, nil, nil)
-		if conn == -1 {return} // listener shut down: we're done
+		if conn == -1 {return} 	// listener shut down: we're done
 		_fake_qmp_handle(conn)
 	}
 }
 
 _fake_qmp_handle :: proc(conn: posix.FD) {
 	defer posix.close(conn)
-	_fake_qmp_write(conn, `{"QMP":{"version":{"qemu":{"major":8,"minor":0,"micro":0},"package":"fake"},"capabilities":[]}}` + "\n")
+	_fake_qmp_write(
+		conn,
+		`{"QMP":{"version":{"qemu":{"major":8,"minor":0,"micro":0},"package":"fake"},"capabilities":[]}}` +
+		"\n",
+	)
 	buf: [64 * 1024]u8
 	pending := 0
 	for {
@@ -2004,8 +2342,11 @@ _fake_qmp_start :: proc(t: ^T, sock_path: string) -> ^Fake_QMP {
 	for i in 0 ..< len(sock_path) {
 		addr.sun_path[i] = sock_path[i]
 	}
-	testing.expect(t, posix.bind(srv.ln, cast(^posix.sockaddr)&addr, posix.socklen_t(size_of(addr))) == .OK,
-		"fake qmp: bind")
+	testing.expect(
+		t,
+		posix.bind(srv.ln, cast(^posix.sockaddr)&addr, posix.socklen_t(size_of(addr))) == .OK,
+		"fake qmp: bind",
+	)
 	testing.expect(t, posix.listen(srv.ln, 1) == .OK, "fake qmp: listen")
 	srv.th = thread.create_and_start_with_poly_data(srv, _fake_qmp_serve)
 	return srv

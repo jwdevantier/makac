@@ -260,9 +260,11 @@ _makac_spawn :: proc "c" (L: ^lua.State) -> c.int {
 		_ = posix.dup2(in_fd, posix.FD(0))
 		_ = posix.dup2(out_fd, posix.FD(1))
 		_ = posix.dup2(err_fd, posix.FD(2))
-		_ = posix.close(in_fd)
-		_ = posix.close(out_fd)
-		_ = posix.close(err_fd)
+		// Close EVERYTHING else: the three sources just dup2'd, and — the
+		// point — every descriptor the parent happened to hold (QMP
+		// sockets, SSH control sockets, other pipes). A detached guest has
+		// no business keeping any of makac's plumbing alive (MCR-052).
+		sp.Close_FDs_Above(-1)
 		if chdir_cs != nil {
 			if posix.chdir(chdir_cs) != .OK {posix._exit(126)}
 		}

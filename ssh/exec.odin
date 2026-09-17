@@ -55,9 +55,15 @@ import sp "../subprocess"
 /// via `PATH`.
 ///
 /// Returns `.Spawn_Failed` when the process cannot be started (or the
-/// executable is not found in PATH), `.Wait_Failed` when waiting fails
-/// or the child does not exit normally, and `.NonZero_Exit` (with the
-/// exit status in `exit_code`) when it exits with a non-zero status.
+/// executable is not found in PATH), and `.NonZero_Exit` (with the
+/// exit status in `exit_code`; a child killed by a signal reports the
+/// signal number) when it exits with a non-zero status.
+///
+/// The work is delegated to `subprocess.Run`, which also closes every
+/// inherited file descriptor above 2 in the child before exec (QMP
+/// sockets and control sockets must not leak into ssh children) and
+/// reaps the child; a wait failure would surface as `.Spawn_Failed`
+/// with the errno in `os_err` (`.Wait_Failed` is no longer produced).
 run_process :: proc(
 	command: string,
 	args: []string,
@@ -71,13 +77,9 @@ run_process :: proc(
 		return Error{kind = .Invalid_Arg, msg = "command must not be empty"}
 	}
 
-	// Odin core's `os.process_start` looks up unqualified commands via the
-	// *parent* process's PATH -- not via `desc.env`. Since this package's
-	// whole point is to spawn `ssh`/`scp` (which may be supplied via a
-	// stub PATH for testing, or via the user's PATH in production), do the
-	// PATH lookup ourselves here. If the executable can't be located, fail
-	// with `.Spawn_Failed` rather than letting `process_start` fall back to
-	// the wrong binary and exit with status 255.
+	// Resolve the executable against the child's PATH when one is
+	// supplied (stub testing), the parent's otherwise, so a stub `ssh`
+	// cannot be silently swapped for the real one — or the reverse.
 	resolved_command, found := resolve_command(command, child_env, temp, temp)
 	if !found {
 		return Error{kind = .Spawn_Failed, msg = command}
@@ -94,35 +96,26 @@ run_process :: proc(
 	for a in args {
 		append(&cmd, a)
 	}
-	// `cmd` is copied into the kernel by process_start; release our
+	// `cmd` is copied into the child command by sp.Run; release our
 	// copy before returning so this procedure leaves nothing on `temp`.
 	defer delete(cmd)
 
-	p, e := os.process_start(
-		os.Process_Desc{
-			command = cmd[:],
-			stdin   = stdin,
-			stdout  = stdout,
-			stderr  = stderr,
-			env     = child_env,
-		},
-	)
-	if e != nil {
-		return Error{kind = .Spawn_Failed, msg = command, os_err = e}
+	// No capture, no pipes: the child's stdio IS ours, so interactive
+	// sessions and password prompts work. No timeout and no on_line, so
+	// the child stays in makac's process group — the terminal's Ctrl-C
+	// must keep reaching the session.
+	res, rerr := sp.Run(cmd[:], sp.Options{
+		stdin_fd  = stdin,
+		stdout_fd = stdout,
+		stderr_fd = stderr,
+		env       = child_env,
+	})
+	if rerr != nil {
+		return Error{kind = .Spawn_Failed, msg = command, os_err = rerr}
 	}
-
-	state, werr := os.process_wait(p)
-	if werr != nil {
-		return Error{kind = .Wait_Failed, msg = command, os_err = werr}
+	if res.code != 0 {
+		return Error{kind = .NonZero_Exit, msg = command, exit_code = res.code}
 	}
-	if !state.exited {
-		return Error{kind = .Wait_Failed, msg = command}
-	}
-
-	if state.exit_code != 0 {
-		return Error{kind = .NonZero_Exit, msg = command, exit_code = state.exit_code}
-	}
-
 	return {}
 }
 

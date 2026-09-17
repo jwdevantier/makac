@@ -9,14 +9,21 @@
 //                                stdin, working_dir, env, join_stderr.
 //   - `downloader.run_capture` — capture only stderr (curl writes the body
 //                                to a file); no timeout, no on_line.
-//   - `ssh.run_process`        — capture nothing (interactive ssh/scp);
-//                                uses the parent's stdin/stdout/stderr.
+//   - `ssh.run_process`        — capture nothing; the parent's stdio is
+//                                passed through for interactive sessions.
+//
+// Run owns its fork/exec (it does not use os.process_start): the child is
+// placed in its own process group whenever a kill path exists, so timeout
+// and callback-abort escalation reach grandchildren, and it closes every
+// inherited file descriptor above 2 before exec (Close_FDs_Above) so QMP
+// sockets and SSH control sockets cannot leak into unrelated children.
 //
 // `Find_Executable` is the PATH resolver with the execute-bit check that
 // `vm.spawn._resolve_exec_path` previously skipped.
 package subprocess
 
 import "base:runtime"
+import "core:c"
 import "core:os"
 import "core:strings"
 import "core:sys/posix"
@@ -36,6 +43,9 @@ import "core:time"
 //
 // `timed_out` is true iff the deadline was reached and the child was killed.
 // `callback_aborted` is true iff the `on_line` callback returned false.
+// A child killed by the escalation is reported with `code` = the signal
+// number (matching core:os's wait reporting for killed children); the two
+// flags above carry the "why".
 //
 // A non-zero `code` is data, not an error: only a spawn failure sets
 // the returned `os.Error`.
@@ -58,13 +68,23 @@ Line_Callback :: proc "c" (ctx: rawptr, stream, line: string) -> bool
 Options :: struct {
 	// working_dir, when non-empty, becomes the child's cwd.
 	working_dir: string,
-	// env, when non-nil, is the child's WHOLE environment. nil inherits.
+	// env, when non-nil, is the child's WHOLE environment — and its PATH=
+	// entry (when present) is what an unqualified argv[0] is resolved
+	// against, unlike os.process_start which always consulted the parent's
+	// PATH. nil inherits the parent's environment verbatim.
 	env: []string,
 	// stdin_data, when present, is written to the child's stdin (then closed).
 	stdin_data: Maybe(string),
+	// stdin_fd, when set (and no stdin_data), becomes the child's fd 0.
+	// Neither option wires the child to /dev/null.
+	stdin_fd: Maybe(^os.File),
 
-	// When capture_stdout is false, the child's stdout is wired to
-	// `stdout_fd` if set, else `os.stdout`. Same for stderr.
+	// Stdout wiring, in order: capture_stdout = true → a pipe, captured
+	// into Result.stdout. Else stdout_fd set → the child's fd 1 IS that
+	// file (no pipe at all — interactive passthrough). Else → a pipe that
+	// is read and DISCARDED, so a chatty child cannot block on a full
+	// pipe. Stderr is symmetric (capture_stderr/stderr_fd), except that
+	// join_stderr routes it onto whatever fd 1 is.
 	capture_stdout: bool,
 	capture_stderr: bool,
 	stdout_fd:      Maybe(^os.File),
@@ -74,8 +94,9 @@ Options :: struct {
 	// interleaved order (the shell's `2>&1`). Implies capture_stderr=false.
 	join_stderr: bool,
 
-	// timeout_s (> 0 = armed): on expiry the child is SIGTERM'd, given a
-	// 1s grace, then SIGKILL'd. `Result.timed_out` is set.
+	// timeout_s (> 0 = armed): on expiry the child's whole process group
+	// is SIGTERM'd, given a 1s grace, then SIGKILL'd. `Result.timed_out`
+	// is set.
 	timeout_s: f64,
 
 	// on_line, when set, streams complete lines as they arrive.
@@ -84,6 +105,48 @@ Options :: struct {
 
 	// allocator owns the captured output and the per-line streaming buffers.
 	allocator: runtime.Allocator,
+}
+
+// ---------------------------------------------------------------------------
+// Child-side fd hygiene
+// ---------------------------------------------------------------------------
+
+// Close_FDs_Above closes every file descriptor greater than 2 except `keep`
+// (pass a negative value to keep nothing). It exists to run INSIDE a child
+// between fork and exec: children must not inherit makac's long-lived
+// descriptors (QMP sockets, SSH control sockets, capture pipes of other
+// runs) — an inherited write end keeps pipes alive past their owners, and a
+// daemonized descendant of an unrelated child can hold a QMP socket open
+// after makac closed its own copy.
+//
+// POSIX's only portable primitive is the blunt one: close(2) on every
+// number up to the soft RLIMIT_NOFILE (an EBADF for numbers that were not
+// open is harmless). The Linux build takes the close_range(2) fast path
+// (fds_linux.odin) because a million-close walk costs ~100 ms per spawn on
+// the 1M soft limits modern systemd distributions ship; everywhere else
+// `_close_fds_loop` below IS the implementation, and typical soft limits
+// there keep it well under a millisecond.
+//
+// Post-fork discipline: no allocation, no Odin runtime — close(2) only.
+// (The symbol itself lives in fds_linux.odin / fds_posix.odin, selected by
+// the #+build tags; both forward to or wrap `_close_fds_loop` below.)
+
+// The portable walk: 3 ..< soft RLIMIT_NOFILE, skipping `keep`. An
+// RLIM_INFINITY soft limit (never seen in practice) is capped so the loop
+// stays finite; a failing getrlimit falls back to the classic default.
+_close_fds_loop :: proc "contextless" (keep: posix.FD) {
+	limit := 1024
+	rl: posix.rlimit
+	if posix.getrlimit(.NOFILE, &rl) == .OK {
+		cur := i64(rl.rlim_cur)
+		if cur > 0 && cur != i64(~u64(0)) {
+			limit = int(min(cur, i64(1 << 20)))
+		}
+	}
+	for fd := 3; fd < limit; fd += 1 {
+		if posix.FD(fd) == keep {continue}
+		_ = posix.close(posix.FD(fd))
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -98,73 +161,228 @@ Line_Feeder :: struct {
 
 // Run `argv` to completion and return its Result.
 //
-// Spawn failure sets the returned `os.Error`; the Result is zero. A
-// non-zero exit code is data.
+// Spawn failure (empty argv, unresolvable executable, pipe/fork failure, or
+// a pre-exec failure reported by the child through the status pipe) sets the
+// returned `os.Error`; the Result is zero. A non-zero exit code is data.
+//
+// The child runs in its own process group iff a kill path exists
+// (timeout_s > 0 or on_line set), so that the escalation's SIGTERM/SIGKILL
+// — delivered to the group — also reaches grandchildren the child forked
+// (a `sh -c "sleep 30 & wait"` step must not orphan its sleep). Without a
+// kill path the child stays in makac's group: the terminal's Ctrl-C keeps
+// reaching interactive ssh/scp children.
 Run :: proc(argv: []string, opts: Options = {}) -> (res: Result, err: os.Error) {
-	// join_stderr implies capture_stderr=false (the stderr text lands in
-	// the stdout pipe and is returned via `Result.stdout`).
 	capture_out := opts.capture_stdout
 	capture_err := opts.capture_stderr && !opts.join_stderr
+	group := opts.timeout_s > 0 || opts.on_line != nil
 
-	// Always create pipes for stdout/stderr (the child writes to them via
-	// os.process_start). When capture_* is false, the read end is drained
-	// silently — bytes are discarded, no allocation grows.
-	stdout_r, stdout_w := os.pipe() or_return
-	defer os.close(stdout_r)
-	stderr_r, stderr_w := os.pipe() or_return
-	defer os.close(stderr_r)
-
-	// join_stderr: route the child's stderr into stdout's pipe (2>&1).
-	child_stderr_w := stderr_w
-	if opts.join_stderr {
-		child_stderr_w = stdout_w
-	}
-
-	stdin_r, stdin_w: ^os.File
-	if data, ok := opts.stdin_data.?; ok && len(data) > 0 {
-		stdin_r, stdin_w = os.pipe() or_return
-	}
-	defer if stdin_r != nil {os.close(stdin_r)}
-
-	p, perr := os.process_start(os.Process_Desc{
-		working_dir = opts.working_dir,
-		command     = argv,
-		env         = opts.env,
-		stdin       = stdin_r,
-		stdout      = stdout_w,
-		stderr      = child_stderr_w,
-	})
-	if perr != nil {
-		if stdin_w != nil {os.close(stdin_w)}
-		err = perr
+	if len(argv) == 0 || len(argv[0]) == 0 {
+		err = os.Platform_Error(.EINVAL)
 		return
 	}
 
-	// The child holds its own copies of the write ends; drop the parent's
+	temp := context.temp_allocator
+
+	// Resolve the executable PARENT-side: the child must make no
+	// allocations, and an env PATH= entry must govern unqualified
+	// commands (execvp semantics for an explicit environment).
+	exe, found := Find_Executable(argv[0], opts.env, temp, temp)
+	if !found {
+		// Errno precision for path literals: present-but-not-executable
+		// is EACCES, everything else is ENOENT.
+		e := posix.Errno.ENOENT
+		if strings.index_byte(argv[0], '/') >= 0 {
+			if info, serr := os.stat(argv[0], temp); serr == nil {
+				e = .EACCES
+				os.file_info_delete(info, temp)
+			}
+		}
+		err = os.Platform_Error(e)
+		return
+	}
+
+	// Marshal every exec argument now: after fork the child performs
+	// syscalls only (allocator state across a fork is not to be trusted).
+	cargv := make([]cstring, len(argv) + 1, temp)
+	for a, i in argv {
+		cargv[i] = strings.clone_to_cstring(a, temp)
+	}
+	cargv[len(argv)] = nil
+	cexe := strings.clone_to_cstring(exe, temp)
+
+	cenvp: []cstring
+	if opts.env != nil {
+		cenvp = make([]cstring, len(opts.env) + 1, temp)
+		for e, i in opts.env {
+			cenvp[i] = strings.clone_to_cstring(e, temp)
+		}
+		cenvp[len(opts.env)] = nil
+	}
+	ccwd: cstring
+	if opts.working_dir != "" {
+		ccwd = strings.clone_to_cstring(opts.working_dir, temp)
+	}
+
+	// fd 1 target: a captured pipe, a passthrough file, or a drained pipe.
+	stdout_r, stdout_w: ^os.File
+	child_out: posix.FD
+	if f, ok := opts.stdout_fd.?; ok && !capture_out {
+		child_out = posix.FD(i32(os.fd(f)))
+	} else {
+		stdout_r, stdout_w = os.pipe() or_return
+		child_out = posix.FD(i32(os.fd(stdout_w)))
+	}
+	defer if stdout_r != nil {os.close(stdout_r)}
+	defer if stdout_w != nil {os.close(stdout_w)}
+
+	// fd 2 target: stderr's own pipe/file, or fd 1's target when joined.
+	stderr_r, stderr_w: ^os.File
+	child_err: posix.FD
+	if opts.join_stderr {
+		child_err = child_out
+	} else if f, ok := opts.stderr_fd.?; ok && !capture_err {
+		child_err = posix.FD(i32(os.fd(f)))
+	} else {
+		stderr_r, stderr_w = os.pipe() or_return
+		child_err = posix.FD(i32(os.fd(stderr_w)))
+	}
+	defer if stderr_r != nil {os.close(stderr_r)}
+	defer if stderr_w != nil {os.close(stderr_w)}
+
+	// fd 0 target: the stdin-data pipe, a passthrough file, or /dev/null
+	// (opened child-side below).
+	stdin_r, stdin_w: ^os.File
+	child_in: posix.FD = -1
+	if data, ok := opts.stdin_data.?; ok && len(data) > 0 {
+		stdin_r, stdin_w = os.pipe() or_return
+		child_in = posix.FD(i32(os.fd(stdin_r)))
+	} else if f, ok := opts.stdin_fd.?; ok {
+		child_in = posix.FD(i32(os.fd(f)))
+	}
+	defer if stdin_r != nil {os.close(stdin_r)}
+	defer if stdin_w != nil {os.close(stdin_w)}
+
+	// Exec-status pipe: the child writes one errno byte when anything
+	// fails before execve; FD_CLOEXEC on the write end makes a SUCCESSFUL
+	// exec close it, so the parent's read returns EOF exactly when the
+	// child is running.
+	status: [2]posix.FD
+	if posix.pipe(&status) != .OK {
+		err = os.Platform_Error(posix.errno())
+		return
+	}
+	status_r, status_w := status[0], status[1]
+	defer _ = posix.close(status_r)
+	defer if status_w >= 0 { _ = posix.close(status_w) }
+	_ = posix.fcntl(status_w, .SETFD, posix.FD_CLOEXEC)
+
+	pid := posix.fork()
+	if pid < 0 {
+		err = os.Platform_Error(posix.errno())
+		return
+	}
+
+	if pid == 0 {
+		// CHILD — post-fork discipline: syscalls only, nothing that
+		// touches the allocator (makac is threaded; the forked child
+		// owns none of the other threads' state).
+		fail :: proc "contextless" (w: posix.FD, e: c.int) {
+			b := [1]u8{u8(e)}
+			_ = posix.write(w, &b[0], 1)
+			posix._exit(127)
+		}
+
+		if group && posix.setpgid(0, 0) != .OK {
+			fail(status_w, c.int(posix.errno()))
+		}
+
+		fd_in := child_in
+		if fd_in == -1 {
+			fd_in = posix.open("/dev/null", posix.O_Flags{})
+			if fd_in == -1 {fail(status_w, c.int(posix.errno()))}
+		}
+		if posix.dup2(fd_in, 0) < 0 {fail(status_w, c.int(posix.errno()))}
+		if posix.dup2(child_out, 1) < 0 {fail(status_w, c.int(posix.errno()))}
+		if posix.dup2(child_err, 2) < 0 {fail(status_w, c.int(posix.errno()))}
+
+		// The status pipe must sit above the stdio slots to survive the
+		// close below. It only could not when the parent itself ran with
+		// closed stdio (a pipe landed on 0/1/2, and the dup2s clobbered
+		// it); report exec failure the only way left — exit 127, no byte.
+		if status_w < 3 {posix._exit(127)}
+
+		// No inherited fd survives exec — not QMP sockets, not SSH
+		// control sockets, not another run's pipes.
+		Close_FDs_Above(status_w)
+
+		if ccwd != nil {
+			if posix.chdir(ccwd) != .OK {fail(status_w, c.int(posix.errno()))}
+		}
+
+		if cenvp != nil {
+			_ = posix.execve(cexe, &cargv[0], &cenvp[0])
+		} else {
+			_ = posix.execve(cexe, &cargv[0], posix.environ)
+		}
+		fail(status_w, c.int(posix.errno()))
+	}
+
+	// PARENT — the child holds its own copies of the write ends; drop ours
 	// RIGHT NOW so the read ends see EOF at child exit. (We can't defer
 	// these to function exit — the poll loop below would never see EOF.)
-	os.close(stdout_w)
-	stdout_w = nil
-	if !opts.join_stderr {
+	_ = posix.close(status_w)
+	status_w = -1
+	if stdout_w != nil {
+		os.close(stdout_w)
+		stdout_w = nil
+	}
+	if stderr_w != nil {
 		os.close(stderr_w)
 		stderr_w = nil
 	}
 
+	// Close the kill race: if the child has not run its setpgid yet, do it
+	// for it. EACCES just means the child got there first. This must
+	// happen before the first group kill, which it does — the deadline is
+	// armed and the poll loop starts only after the status read below.
+	if group {
+		_ = posix.setpgid(pid, pid)
+	}
+
+	// Blocking wait for the exec outcome: EOF = the child is running; one
+	// byte = the errno that stopped it before execve.
+	exec_err: [1]u8
+	n: c.ssize_t = -1
+	for {
+		n = posix.read(status_r, &exec_err[0], 1)
+		if n >= 0 {break}
+		if posix.errno() != .EINTR {break} // protocol broken; waitpid decides
+	}
+	if n == 1 {
+		st: c.int
+		for posix.waitpid(pid, &st, {}) < 0 && posix.errno() == .EINTR {}
+		err = os.Platform_Error(posix.Errno(int(exec_err[0])))
+		return
+	}
+
 	if data, ok := opts.stdin_data.?; ok && len(data) > 0 {
-		defer os.close(stdin_w)
 		rest := transmute([]u8)data
 		for len(rest) > 0 {
 			n, werr := os.write(stdin_w, rest)
 			if werr != nil {break}
 			rest = rest[n:]
 		}
+		// close promptly (not at function exit): the child's stdin must
+		// see EOF once the data is through
+		os.close(stdin_w)
+		stdin_w = nil
 	}
 
 	stdout_b := make([dynamic]u8, opts.allocator)
 	stderr_b := make([dynamic]u8, opts.allocator)
 	buf: [4096]u8 = ---
-	stdout_done := !capture_out
-	stderr_done := !capture_err
+	stdout_done := stdout_r == nil
+	stderr_done := stderr_r == nil
 
 	fdr := Line_Feeder{cb = opts.on_line, ctx = opts.on_line_ctx}
 	out_line := make([dynamic]u8, context.temp_allocator)
@@ -196,6 +414,14 @@ Run :: proc(argv: []string, opts: Options = {}) -> (res: Result, err: os.Error) 
 	timed := opts.timeout_s > 0
 	deadline := time.time_add(time.now(), time.Duration(opts.timeout_s * 1e9))
 
+	// Escalation targets the child's GROUP when one exists, so grandchildren
+	// forked by the child (a step's `sh -c "sleep 30 & wait"`) die with it
+	// instead of outliving the run while holding inherited pipe write ends.
+	kill_target := pid
+	if group {
+		kill_target = -pid
+	}
+
 	posix_fd :: #force_inline proc(f: ^os.File) -> posix.FD {return posix.FD(i32(os.fd(f)))}
 
 	read_one :: proc(
@@ -204,13 +430,16 @@ Run :: proc(argv: []string, opts: Options = {}) -> (res: Result, err: os.Error) 
 		stream: string,
 		readbuf: []u8,
 		fdr: ^Line_Feeder,
+		keep: bool,
 	) -> (done: bool, rerr: os.Error) {
 		n, r := os.read(fd, readbuf)
 		switch r {
 		case nil:
 			if n > 0 {
-				append(accum, ..readbuf[:n])
-				feed(line_acc, readbuf[:n], stream, fdr)
+				if keep {
+					append(accum, ..readbuf[:n])
+					feed(line_acc, readbuf[:n], stream, fdr)
+				}
 			}
 			return false, nil
 		case .EOF, .Broken_Pipe:
@@ -234,6 +463,7 @@ Run :: proc(argv: []string, opts: Options = {}) -> (res: Result, err: os.Error) 
 		}
 		n := posix.poll(&fds[0], auto_cast nfds, ms)
 		if n < 0 {
+			if posix.errno() == .EINTR {continue}
 			res.stdout = stdout_b[:]
 			res.stderr = stderr_b[:]
 			err = os.Platform_Error(posix.errno())
@@ -243,11 +473,11 @@ Run :: proc(argv: []string, opts: Options = {}) -> (res: Result, err: os.Error) 
 			switch escalation {
 			case 0:
 				res.timed_out = true
-				_ = os.process_terminate(p)
+				_ = posix.kill(kill_target, .SIGTERM)
 				deadline = time.time_add(time.now(), time.Second)
 				escalation = 1
 			case:
-				_ = os.process_kill(p)
+				_ = posix.kill(kill_target, .SIGKILL)
 				timed = false
 				escalation = 2
 			}
@@ -258,7 +488,7 @@ Run :: proc(argv: []string, opts: Options = {}) -> (res: Result, err: os.Error) 
 		if !stdout_done {
 			pfd := &fds[0]
 			if .IN in pfd.revents {
-				stdout_done, _ = read_one(stdout_r, &stdout_b, &out_line, "stdout", buf[:], &fdr)
+				stdout_done, _ = read_one(stdout_r, &stdout_b, &out_line, "stdout", buf[:], &fdr, capture_out)
 			} else if pfd.revents & {.HUP, .ERR, .NVAL} != {} {
 				flush(&out_line, "stdout", &fdr)
 				stdout_done = true
@@ -268,7 +498,7 @@ Run :: proc(argv: []string, opts: Options = {}) -> (res: Result, err: os.Error) 
 		if !stderr_done {
 			pfd := &fds[wi]
 			if .IN in pfd.revents {
-				stderr_done, _ = read_one(stderr_r, &stderr_b, &err_line, "stderr", buf[:], &fdr)
+				stderr_done, _ = read_one(stderr_r, &stderr_b, &err_line, "stderr", buf[:], &fdr, capture_err)
 			} else if pfd.revents & {.HUP, .ERR, .NVAL} != {} {
 				flush(&err_line, "stderr", &fdr)
 				stderr_done = true
@@ -277,21 +507,33 @@ Run :: proc(argv: []string, opts: Options = {}) -> (res: Result, err: os.Error) 
 
 		if fdr.stopped {
 			res.callback_aborted = true
-			_ = os.process_terminate(p)
-			_ = os.process_kill(p)
+			_ = posix.kill(kill_target, .SIGTERM)
+			_ = posix.kill(kill_target, .SIGKILL)
 			timed = false
 		}
 	}
 
-	state, werr := os.process_wait(p)
-	if werr != nil {
-		res.stdout = stdout_b[:]
-		res.stderr = stderr_b[:]
-		err = werr
-		return
+	st: c.int
+	for {
+		w := posix.waitpid(pid, &st, {})
+		if w >= 0 {break}
+		if posix.errno() != .EINTR {
+			res.stdout = stdout_b[:]
+			res.stderr = stderr_b[:]
+			err = os.Platform_Error(posix.errno())
+			return
+		}
 	}
 
-	res.code = state.exit_code
+	if posix.WIFEXITED(st) {
+		res.code = int(posix.WEXITSTATUS(st))
+	} else if posix.WIFSIGNALED(st) {
+		// The signal number as the code, matching how core:os reports
+		// killed children; timed_out / callback_aborted carry the reason.
+		res.code = int(posix.WTERMSIG(st))
+	} else {
+		res.code = -1
+	}
 	res.stdout = stdout_b[:]
 	res.stderr = stderr_b[:]
 	return
