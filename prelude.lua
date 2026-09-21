@@ -17,6 +17,44 @@ makac = makac or {}
 -- action_default_names remembers each action's `default_name` for `step`.
 makac.registry = { actions = {}, fetchers = {}, action_default_names = {} }
 
+-- ==== Scoped cleanup (Lua 5.4 to-be-closed variables) ====
+--
+-- defer(fn) / errdefer(fn) return a to-be-closed value. Declare it with
+-- `<close>` and Lua runs fn when the enclosing block exits:
+--
+--   local g <close> = makac.errdefer(function() release_thing() end)
+--
+--   makac.defer    -- on any scope exit (normal return or error)
+--   makac.errdefer -- only when the scope exits via an error
+--
+-- Both are best-effort: an error from fn is reported on stderr, never
+-- raised, so cleanup cannot mask the error that is unwinding. NOTE: the
+-- `<close>` at the declaration site is load-bearing -- a plain local is
+-- NOT closed, and the cleanup is then silently skipped.
+local function scoped_cleanup(fn, error_only)
+	assert(type(fn) == "function", "defer/errdefer: fn must be a function")
+	return setmetatable({}, {
+		__close = function(_, err)
+			if error_only and err == nil then
+				return
+			end
+			local ok, cleanup_err = pcall(fn, err)
+			if not ok then
+				io.stderr:write(("makac: deferred cleanup failed: %s\n"):format(
+					tostring(cleanup_err)))
+			end
+		end,
+	})
+end
+
+function makac.defer(fn)
+	return scoped_cleanup(fn, false)
+end
+
+function makac.errdefer(fn)
+	return scoped_cleanup(fn, true)
+end
+
 -- ==== Action machinery (design/action.md) ====
 
 -- Register `fn` as action `name`; a step with `uses = "name"` invokes it.

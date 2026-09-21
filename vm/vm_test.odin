@@ -454,6 +454,48 @@ test_prelude_available :: proc(t: ^T) {
 	testing.expect(t, ok, err.message)
 }
 
+// makac.defer / makac.errdefer: Lua 5.4 to-be-closed scoped cleanup.
+@(test)
+test_prelude_scope_cleanup :: proc(t: ^T) {
+	v := new()
+	defer close(v)
+	err, ok := run_string(
+		v,
+		`
+		-- defer runs on a normal exit; errdefer stays silent there
+		local log = ""
+		do
+			local d <close> = makac.defer(function() log = log .. "d" end)
+			local e <close> = makac.errdefer(function() log = log .. "E" end)
+			log = log .. "n"
+		end
+		assert(log == "nd", "normal exit: got " .. log)
+
+		-- on an error both run, in reverse declaration order (inner first)
+		log = ""
+		local ok = pcall(function()
+			local d <close> = makac.defer(function() log = log .. "d" end)
+			local e <close> = makac.errdefer(function() log = log .. "e" end)
+			error("boom")
+		end)
+		assert(not ok, "expected the pcall to fail")
+		assert(log == "ed", "error exit: got " .. log)
+
+		-- a failing cleanup is reported but must not replace the error
+		local ok2, err2 = pcall(function()
+			local e <close> = makac.errdefer(function() error("cleanup") end)
+			error("original")
+		end)
+		assert(not ok2 and tostring(err2):find("original"),
+			"original error must survive, got " .. tostring(err2))
+
+		assert(type(makac.defer) == "function" and type(makac.errdefer) == "function")
+	`,
+	)
+	defer delete(err.message)
+	testing.expect(t, ok, err.message)
+}
+
 // Action machinery: define -> run -> normalized result shape.
 @(test)
 test_action_machinery :: proc(t: ^T) {
