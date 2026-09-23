@@ -60,6 +60,20 @@ Target operations (`run`/`put`/`get`/`close`) are documented on the
 Package-provided `lib/` code is require-able as `require("pkgs/<id>/a/b")` via a
 searcher the prelude installs (maps to `<package root>/lib/a/b.lua`).
 
+### Scoped cleanup
+
+`makac.defer(fn)` and `makac.errdefer(fn)` return a Lua 5.4 to-be-closed value;
+declare it with `<close>` and Lua runs `fn` when the enclosing block exits —
+`defer` on any exit, `errdefer` only when the block exits via an error:
+
+```lua
+local guard <close> = makac.errdefer(function() release_thing() end)
+```
+
+Both are best-effort: an error from `fn` is reported on stderr, never raised,
+so cleanup cannot mask the error being unwound. The `<close>` is load-bearing —
+a plain local is not closed.
+
 ## Odin-side primitives (VM-baked)
 
 These are C closures registered into `makac` before the prelude runs.
@@ -106,10 +120,22 @@ All under the `makac.fs` table.
 | `makac.fs.mktemp_dir(prefix?)` | Create a fresh directory (mode 0700) in the system temp dir; caller removes it. Returns its path. |
 | `makac.fs.mktemp_file(prefix?)` | Create a fresh empty file in the system temp dir; returns its path for the caller to fill and remove. |
 | `makac.fs.sha256(path)` | Hex-encoded SHA256 of the file (streamed); `(nil, err)` for a missing/unreadable file. |
-| `makac.fs.cwd()` | The current working directory. |
-| `makac.fs.open_dir(path)` | A `Dir` handle with iteration/walk methods (used for recursive traversal). |
+| `makac.fs.cwd()` | A `Dir` handle for makac's current working directory. |
+| `makac.fs.open_dir(path)` | A `Dir` handle at `path` (must exist and be a directory; else raises). |
+| `makac.fs.path(s)` | Construct a `path` value from a string (or another path). |
+| `makac.fs.path_join(a, b, ...)` | Join elements into a `path` (empty elements dropped). |
+| `makac.fs.null_file()` | The `/dev/null` path. |
+| `makac.fs.sep` | The platform path separator (`"/"`). |
+| `makac.fs.symlink(target, link)` | Create (or replace) a symlink at `link` pointing at `target`; an existing entry is removed first (a non-empty directory makes that fail, so real content is not clobbered). |
 
 `makac.listdir(path)` is also registered flat (an alias of `makac.fs.listdir`).
+
+A `path` is a value, not a bare string: every `makac.fs` function takes a
+string or a `path`, and the path-returning ones (`path`, `path_join`,
+`null_file`, `mktemp_*`, `Dir:path()`) hand back a `path`. It carries
+`dirname()` / `basename()` / `join(...)`, and `tostring(p)` yields the string.
+A `Dir` offers `path`, `exists`, `touch`, `make_path`, `open_dir`, `parent`,
+`list`, `walk` and `remove` (relative `sub` paths; `remove` is recursive).
 
 ### `makac.time.*` — time
 
@@ -161,10 +187,28 @@ entry is dropped and re-fetched).
 | `makac.random_hex(n)` | `n` random lowercase hex chars (n must be positive). |
 | `makac.qmp_open(...)` | QEMU Machine Protocol client (used by the QEMU package; plain tables on the Lua side — the JSON wire format is never part of the surface). |
 
+## Editor support (LuaCATS / lua-language-server)
+
+So an editor can type a workflow, makac installs a small stub and points
+lua-language-server at it. Whenever the data directory is created or refreshed
+(`makac init`, `makac run`, `makac fetch`) it writes:
+
+- `<data_dir>/makac.lua` — LuaCATS definitions for `makac`, `step`, and the
+  surface documented here;
+- `<data_dir>/pkgs/<id>` — one alias per package, so
+  `require("pkgs/<id>/...")` resolves to the package's `lib/`;
+- `.luarc.json` at the project root, whose `workspace.library` names the data
+  directory as the single library root.
+
+Open the project in an editor using lua-language-server and `makac`/`step` (and
+package modules) resolve. No package is ever written to; a `.luarc.jsonc`, if
+present, shadows `.luarc.json` and is left alone.
+
 ## The full register order (for reference)
 
-The VM registers, in order: QMP, time, json, fs, env, process (`pid_alive`),
-spawn, random, then the embedded prelude, then exposes `makac.data_dir`. The
-prelude defines `step`, the built-in actions (`shell`, `facts`), the fact
-finders (`os`, `env`), the target wrappers, the fetchers (`fetchurl`,
-`fetchgit`, `filesystem`), the package loader, and the `pkgs/` searcher.
+The VM registers, in order: the flat built-ins (`exec`, `download`), the QMP
+client, time, json, fs, env, process (`pid_alive`), spawn, random, then the
+embedded prelude, then exposes `makac.data_dir`. The prelude defines `step`,
+the built-in actions (`shell`, `facts`), the fact finders (`os`, `env`), the
+target wrappers, the fetchers (`fetchurl`, `fetchgit`, `filesystem`), the
+package loader, and the `pkgs/` searcher.
