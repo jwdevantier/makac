@@ -14,6 +14,7 @@
   - [Packages & the data directory](concepts/packages.md)
 - [Reference](reference/index.md)
   - [CLI](reference/cli.md)
+  - [Doctor](reference/doctor.md)
   - [Step specification](reference/step.md)
   - [Built-in actions](reference/actions.md)
   - [Targets](reference/target.md)

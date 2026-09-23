@@ -100,6 +100,10 @@ under the key `pkgs/<id>`: to access `./lib/a.lua` in a package with id `foo`,
 write `require("pkgs/foo/a")`. This is how workflows (and packages) share helper
 code with actions.
 
+A package may also ship a `health.lua` at its root: a check that
+[`makac doctor`](../reference/doctor.md) runs to report the package's
+prerequisites.
+
 ## Fetchers
 
 makac provides three built-in fetchers:

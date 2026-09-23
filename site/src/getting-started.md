@@ -120,6 +120,19 @@ fetcher name, or a function), and an optional `with` table of fetcher arguments.
 is always explicit — `makac run` never fetches automatically, so you control exactly when
 dependencies are updated. See [Fetchers](reference/fetchers.md) for the details.
 
+### 5. Check your environment
+
+makac can report whether the programs it and your packages depend on are
+available:
+
+```bash
+makac doctor
+```
+
+It prints one group per package (plus a `makac` group for makac itself), with
+`OK` / `INFO` / `WARN` / `ERROR` lines, and exits non-zero if anything is
+wrong. See [Doctor](reference/doctor.md).
+
 ## Next steps
 
 - Read [Concepts](concepts/index.md) to understand workflows, steps, actions, targets,

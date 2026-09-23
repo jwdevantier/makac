@@ -9,7 +9,8 @@ This chapter is the detailed, code-accurate reference for makac. Where the
 
 | Page | What it documents |
 | --- | --- |
-| [CLI](cli.md) | The `makac` command-line interface: `init`, `run`, `fetch`, `--version`, and exit behavior. |
+| [CLI](cli.md) | The `makac` command-line interface: `init`, `run`, `fetch`, `doctor`, `--version`, and exit behavior. |
+| [Doctor](doctor.md) | `makac doctor` and the package health-check contract: the `health` API, `health.lua`, and the report shape. |
 | [Step specification](step.md) | The `step { ... }` spec: fields, defaults, and failure handling. |
 | [Built-in actions](actions.md) | The `shell` and `facts` actions: their `with` inputs and result `out` shapes. |
 | [Targets](target.md) | The target abstraction: `run`, `put`, `get`, session reuse, and closing. |
