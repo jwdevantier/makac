@@ -87,6 +87,16 @@ main :: proc() {
 			os.exit(1)
 		}
 		fmt.printf("makac: initialized data directory at %s\n", pargs.value[0])
+		// design/luacats.md: the data dir was just created, so install the LuaLS
+		// stub and .luarc.json here too (best-effort).
+		data_dir := pargs.value[0]
+		if !strings.has_suffix(data_dir, ".makac") {
+			data_dir = strings.concatenate([]string{data_dir, "/.makac"}, context.temp_allocator)
+		}
+		if v := vm.new(data_dir); v != nil {
+			install_luals(v)
+			vm.close(v)
+		}
 	case "run":
 		dir, rok := resolve_datadir()
 		if !rok {os.exit(1)}
