@@ -18,14 +18,14 @@ VM :: struct {
 	state:    ^lua.State,
 	// The resolved `.makac` data directory ("" when the VM is data-dir-less,
 	// e.g. in plain unit tests). Also mirrored into the Lua registry under
-	// DATA_DIR_REGKEY so C primitives (makac.fetch, ...) can reach it from a
+	// DATA_DIR_REGKEY so C primitives (makac.download, ...) can reach it from a
 	// bare ^lua.State. Owned by the VM; freed by `close`.
 	data_dir: string,
 }
 
 // Create a new Lua state with the full standard library opened. `data_dir`
 // (optional) is the resolved `.makac` directory; Odin-side primitives that
-// need it (makac.fetch) raise a clear error when it is absent.
+// need it (makac.download) raise a clear error when it is absent.
 // Returns nil if the state could not be allocated.
 new :: proc(data_dir: string = "") -> ^VM {
 	state := lua.L_newstate()

@@ -16,7 +16,6 @@ import lua "vendor:lua/5.4"
 // Register the Odin-side primitives available to every VM as makac.*.
 register_builtins :: proc(v: ^VM) {
 	register(v, "exec", _makac_exec)
-	register(v, "fetch", _makac_fetch)
 	register(v, "download", _makac_download)
 	// NB: the flat `listdir` alias is registered by register_fs_primitives
 	// (fs.odin), which owns the entry point now.

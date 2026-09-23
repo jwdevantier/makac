@@ -141,10 +141,9 @@ to `makac.exec`'s `env` option.
 
 | Primitive | Description |
 | --- | --- |
-| `makac.fetch(url, sha256?)` | Download `url` over HTTP(S) into a cache keyed by the URL, optionally verifying `sha256`; returns the on-disk cached path. Raises on failure (network, HTTP error, checksum mismatch). Cache: `<data_dir>/cache`. |
-| `makac.download(url, sha256?, cache_dir?)` | Same as `makac.fetch`, with an optional explicit cache-directory override. |
+| `makac.download(url, sha256?, cache_dir?)` | Download `url` over HTTP(S) into a cache keyed by the URL, optionally verifying `sha256`; returns the on-disk cached path. `cache_dir` defaults to `<data_dir>/cache`. Raises on failure (network, HTTP error, checksum mismatch). |
 
-Both raise on failure (e.g. `"checksum mismatch"`); a second fetch of the same
+It raises on failure (e.g. `"checksum mismatch"`); a second fetch of the same
 URL is served from cache (re-verified when a checksum is given — a corrupt
 entry is dropped and re-fetched).
 

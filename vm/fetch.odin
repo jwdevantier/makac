@@ -26,8 +26,7 @@ _data_dir :: proc(L: ^lua.State) -> string {
 	return ""
 }
 
-// _download_impl backs both makac.fetch(url[, sha256]) and
-// makac.download(url[, sha256[, cache_dir_hint]]).
+// _download_impl backs makac.download(url[, sha256[, cache_dir_hint]]).
 //
 // Fetches `url` over HTTP(S) into a cache directory keyed as
 // `<cache_dir>/<sha256(url)>` (see the downloader package), optionally
@@ -88,11 +87,6 @@ _download_impl :: proc "c" (L: ^lua.State, name: cstring) -> c.int {
 
 	lua.pushlstring(L, cstring(raw_data(path)), c.size_t(len(path)))
 	return 1
-}
-
-_makac_fetch :: proc "c" (L: ^lua.State) -> c.int {
-	context = runtime.default_context()
-	return _download_impl(L, "makac.fetch")
 }
 
 _makac_download :: proc "c" (L: ^lua.State) -> c.int {

@@ -740,7 +740,7 @@ test_facts_action :: proc(t: ^T) {
 	testing.expect(t, ok, err.message)
 }
 
-// makac.fetch: real HTTPS fetch into <data_dir>/cache keyed by sha256(url),
+// makac.download: real HTTPS fetch into <data_dir>/cache keyed by sha256(url),
 // exercised through Lua (body content, key shape, cache-hit semantics), with
 // checksum verification checked Odin-side around it.
 @(test)
@@ -759,13 +759,13 @@ test_fetch_over_https :: proc(t: ^T) {
 			`
 		local url = "https://example.com/"
 		local prefix = "%s/cache/"
-		local p = makac.fetch(url)
+		local p = makac.download(url)
 		assert(p:sub(1, #prefix) == prefix, "fetched path must live under <data_dir>/cache, got: " .. p)
 		local base = p:match("([^/]+)$")
 		assert(#base == 64 and base:match("^[0-9a-f]+$"), "cache key must be a sha256 hex digest, got: " .. base)
 		local f = io.open(p, "rb"); local body = f:read("a"); f:close()
 		assert(body:find("Example Domain", 1, true), "unexpected body from example.com")
-		local p2 = makac.fetch(url)  -- cache hit: same slot, no transfer
+		local p2 = makac.download(url)  -- cache hit: same slot, no transfer
 		assert(p2 == p, "same URL must return the same cache slot")
 	`,
 			dir,
@@ -782,7 +782,7 @@ test_fetch_over_https :: proc(t: ^T) {
 	digest, herr := dl.hash_file(file_path, context.temp_allocator)
 	testing.expectf(t, herr == nil, "hash cached file: {}", herr)
 
-	script2 := fmt.tprintf(`assert(makac.fetch("https://example.com/", "%s") ~= nil)`, digest)
+	script2 := fmt.tprintf(`assert(makac.download("https://example.com/", "%s") ~= nil)`, digest)
 	err2, ok2 := run_string(v, script2)
 	defer delete(err2.message)
 	testing.expect(t, ok2, err2.message)
@@ -793,7 +793,7 @@ test_fetch_over_https :: proc(t: ^T) {
 	err3, ok3 := run_string(
 		v,
 		fmt.tprintf(
-			`local pok, perr = pcall(makac.fetch, "https://example.com/", "%s")
+			`local pok, perr = pcall(makac.download, "https://example.com/", "%s")
 			assert(not pok, "wrong checksum must be an error")
 			assert(tostring(perr):find("checksum mismatch"), tostring(perr))`,
 			bad,
@@ -935,16 +935,16 @@ test_download_primitive :: proc(t: ^T) {
 	testing.expect(t, ok, err.message)
 }
 
-// makac.fetch without a data directory raises a clear error instead of
-// fetching somewhere arbitrary.
+// makac.download without a data directory raises a clear error instead of
+// downloading somewhere arbitrary.
 @(test)
-test_fetch_requires_data_dir :: proc(t: ^T) {
+test_download_requires_data_dir :: proc(t: ^T) {
 	v := new()
 	defer close(v)
 	err, ok := run_string(
 		v,
 		`
-		local pok, perr = pcall(makac.fetch, "https://example.com/")
+		local pok, perr = pcall(makac.download, "https://example.com/")
 		assert(not pok and tostring(perr):find("no data directory"), tostring(perr))
 	`,
 	)

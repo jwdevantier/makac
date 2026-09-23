@@ -164,8 +164,7 @@ function Dir:remove(sub) end
 ---@field spawn fun(argv: string[], opts?: SpawnOpts): Proc
 ---@field pid_alive fun(pid: integer): boolean
 ---@field random_hex fun(n: integer): string
----@field download fun(spec: any, dest?: string): any
----@field fetch fun(spec: any, dest?: string): any
+---@field download fun(url: string, sha256?: string, cache_dir?: string): string
 ---@field ssh_open fun(name: string, spec: any): Target
 ---@field new_ssh_target fun(name: string, spec: SshSpec): Target
 ---@field qmp_open fun(vm: any): any
