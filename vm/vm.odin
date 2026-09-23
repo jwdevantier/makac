@@ -165,3 +165,34 @@ call_named :: proc(v: ^VM, name: string) -> (called: bool, err: Error) {
 	}
 	return true, {}
 }
+
+// call_string_int calls the Lua function `name` (dot path) with one string
+// argument and returns its integer result (used by `makac doctor`, whose
+// prelude runner returns the error count). `called` is false when the function
+// does not exist; a raising function returns its message in `err`.
+call_string_int :: proc(v: ^VM, name: string, arg: string) -> (n: int, called: bool, err: Error) {
+	L := v.state
+	top := lua.gettop(L)
+	defer lua.settop(L, top) // balanced, also on the error path
+
+	parts := strings.split(name, ".", context.temp_allocator)
+	if len(parts) == 0 {return 0, false, {}}
+	if lua.Type(lua.getglobal(L, strings.clone_to_cstring(parts[0], context.temp_allocator))) == .NIL {
+		return 0, false, {}
+	}
+	for part in parts[1:] {
+		if lua.Type(lua.type(L, -1)) != .TABLE {
+			return 0, false, {}
+		}
+		lua.getfield(L, -1, strings.clone_to_cstring(part, context.temp_allocator))
+		lua.remove(L, -2)
+	}
+	if lua.Type(lua.type(L, -1)) != .FUNCTION {
+		return 0, false, {}
+	}
+	lua.pushlstring(L, cstring(raw_data(arg)), c.size_t(len(arg)))
+	if lua.pcall(L, 1, 1, 0) != c.int(lua.Status.OK) {
+		return 0, true, {message = _pop_error_message(L)}
+	}
+	return int(lua.tointeger(L, -1)), true, {}
+}

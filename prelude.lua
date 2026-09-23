@@ -1233,3 +1233,177 @@ function makac._luals_setup()
 		io.stderr:write("makac: warning: LuaLS stub install failed: " .. tostring(err) .. "\n")
 	end
 end
+
+-- ==== doctor (`makac doctor`, design/doctor.md) ====
+
+-- _doctor_group(name): build one group's report collector. The returned
+-- `health` object is what a check calls; it only accumulates lines and counts
+-- (nothing is printed here, so a check cannot interleave with the report).
+local function _doctor_group()
+	local lines = {}
+	local count = { warn = 0, error = 0 }
+
+	local function emit(label, msg, advice)
+		lines[#lines + 1] = ("  - %-5s %s"):format(label, tostring(msg))
+		if advice ~= nil then
+			if type(advice) == "string" then advice = { advice } end
+			for _, a in ipairs(advice) do
+				lines[#lines + 1] = "    - ADVICE: " .. tostring(a)
+			end
+		end
+	end
+
+	local health = {}
+	function health.start(sub)
+		-- a sub-section: a blank line (unless it opens the group), then the
+		-- name wrapped in `~ ... ~` — distinct from the group's `== ... ==`
+		if #lines > 0 then lines[#lines + 1] = "" end
+		lines[#lines + 1] = "  ~ " .. tostring(sub) .. " ~"
+	end
+	function health.ok(msg) emit("OK", msg) end
+	function health.info(msg) emit("INFO", msg) end
+	function health.warn(msg, advice)
+		count.warn = count.warn + 1
+		emit("WARN", msg, advice)
+	end
+	function health.error(msg, advice)
+		count.error = count.error + 1
+		emit("ERROR", msg, advice)
+	end
+	-- executable(bin): ok when bin is on $PATH, else error; -> bool
+	function health.executable(bin)
+		local ok, res = pcall(makac.exec, { "sh", "-c", "command -v " .. bin })
+		local path = (ok and res.code == 0) and ((res.stdout or ""):gsub("%s+$", "")) or nil
+		if path ~= nil and path ~= "" then
+			health.ok(bin .. " found at " .. path)
+			return true
+		end
+		health.error(bin .. " not found", "install " .. bin .. " and put it on $PATH")
+		return false
+	end
+
+	return health, lines, count
+end
+
+-- The checks makac runs for itself (group "makac").
+local function _doctor_base(health)
+	for _, bin in ipairs({ "sh", "ssh", "scp", "tar", "git", "curl" }) do
+		health.executable(bin)
+	end
+	local dd = makac.data_dir
+	if type(dd) == "string" and dd ~= "" then
+		local probe = dd .. "/.doctor-write-probe"
+		local wok, werr = pcall(makac.fs.write_file, probe, "")
+		if wok then
+			os.remove(probe)
+			health.ok("data directory is writable: " .. dd)
+		else
+			health.error("data directory is not writable: " .. dd, tostring(werr))
+		end
+	else
+		health.info("no data directory (running outside a project)")
+	end
+	local major, minor = makac.env.version()
+	health.info(("makac %d.%d"):format(major, minor))
+end
+
+-- makac._doctor(names): run the health checks, print the report to stdout, and
+-- return the number of error findings (the CLI exits non-zero when > 0, the
+-- runner never raises for a failing check). `names` is a space-separated list
+-- of groups ("makac" or package ids); an empty/blank string means every group.
+-- design/doctor.md.
+function makac._doctor(names)
+	local want, all = {}, true
+	for n in (names or ""):gmatch("%S+") do
+		all = false
+		want[n] = true
+	end
+
+	local groups, found = {}, {}
+	local errors, warnings = 0, 0
+
+	local function run_group(name, fn)
+		found[name] = true
+		local health, lines, count = _doctor_group()
+		local ok, err = pcall(fn, health)
+		if not ok then
+			health.error("check raised: " .. tostring(err))
+		end
+		errors = errors + count.error
+		warnings = warnings + count.warn
+
+		-- header, with the counts appended when there is something to report
+		local header = "== " .. name .. " =="
+		local parts = {}
+		if count.error > 0 then
+			parts[#parts + 1] = ("%d error%s"):format(count.error, count.error == 1 and "" or "s")
+		end
+		if count.warn > 0 then
+			parts[#parts + 1] = ("%d warning%s"):format(count.warn, count.warn == 1 and "" or "s")
+		end
+		if #parts > 0 then header = header .. "  " .. table.concat(parts, ", ") end
+		table.insert(lines, 1, header)
+
+		groups[#groups + 1] = lines
+	end
+
+	if all or want["makac"] then
+		run_group("makac", _doctor_base)
+	end
+
+	local dd = makac.data_dir
+	local okdefs, defs = pcall(makac.read_package_defs, dd)
+	if okdefs and type(defs) == "table" then
+		for _, def in ipairs(defs) do
+			local id = def.id
+			if all or want[id] then
+				run_group(id, function(health)
+					local okdir, dir = pcall(makac.resolve_pkg_dir, def, dd)
+					if not okdir or type(dir) ~= "string" then
+						health.error("cannot resolve the package directory: " .. tostring(dir))
+						return
+					end
+					if makac.fs.stat(dir) == nil then
+						health.error("package is not fetched", "run `makac fetch`")
+						return
+					end
+					-- so the check can require(pkg_name .. "/...") its own lib/
+					makac.pkg_dirs[id] = dir
+					local hpath = dir .. "/health.lua"
+					if makac.fs.stat(hpath) == nil then
+						health.info("no health checks implemented for this package.")
+						return
+					end
+					local chunk, lerr = loadfile(hpath)
+					if not chunk then
+						health.error("cannot load health.lua: " .. tostring(lerr))
+						return
+					end
+					local okc, check = pcall(chunk)
+					if not okc then
+						health.error("health.lua failed to load: " .. tostring(check))
+						return
+					end
+					if type(check) ~= "function" then
+						health.error("health.lua must return a function, got " .. type(check))
+						return
+					end
+					check(health, "pkgs/" .. id)
+				end)
+			end
+		end
+	end
+
+	for n in pairs(want) do
+		if not found[n] then
+			io.stderr:write(("makac doctor: unknown group '%s'\n"):format(n))
+			errors = errors + 1
+		end
+	end
+
+	for i, lines in ipairs(groups) do
+		if i > 1 then print("") end
+		for _, line in ipairs(lines) do print(line) end
+	end
+	return errors
+end

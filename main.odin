@@ -13,9 +13,10 @@ USAGE ::
 `usage: makac [--version] <command> [args]
 
 commands:
-  init <path>     initialize a .makac data directory
-  run <workflow>  run a workflow file
-  fetch           fetch packages listed in .makac/packages.lua
+  init <path>       initialize a .makac data directory
+  run <workflow>    run a workflow file
+  fetch             fetch packages listed in .makac/packages.lua
+  doctor [name...]  report the health of makac and its packages
 
 flags:
   --version       print version (major.minor) and exit
@@ -42,10 +43,15 @@ fetch_cmd := ap.Command {
 	help = "fetch packages listed in .makac/packages.lua",
 }
 
+doctor_cmd := ap.Command {
+	name = "doctor",
+	help = "report the health of makac and its packages",
+}
+
 root_cmd := ap.Command {
 	name     = "makac",
 	flags    = {version_flag},
-	commands = {&init_cmd, &run_cmd, &fetch_cmd},
+	commands = {&init_cmd, &run_cmd, &fetch_cmd, &doctor_cmd},
 }
 
 main :: proc() {
@@ -194,6 +200,33 @@ Then run 'makac fetch' again.
 		if ferr.message != "" {delete(ferr.message)}
 		// design/luacats.md: install/refresh the LuaLS stubs (best-effort)
 		install_luals(v)
+	case "doctor":
+		// base checks run with or without a project; package checks need one
+		dir := ""
+		if cwd, werr := os.get_working_directory(context.temp_allocator); werr == nil {
+			if d, derr := dd.resolve(cwd); derr == .None {
+				dir = d
+			}
+		}
+		v := vm.new(dir)
+		if v == nil {
+			fmt.eprintf("makac: failed to create Lua VM\n")
+			os.exit(1)
+		}
+		defer vm.close(v)
+		pargs, _ := ap.find_args(res)
+		names := strings.join(pargs.value[:], " ", context.temp_allocator)
+		n, called, lerr := vm.call_string_int(v, "makac._doctor", names)
+		if lerr.message != "" {
+			report_error(lerr.message)
+			delete(lerr.message)
+			os.exit(1)
+		}
+		if !called {
+			fmt.eprintf("makac: internal error: makac._doctor is missing\n")
+			os.exit(1)
+		}
+		if n > 0 {os.exit(1)}
 	case:
 		fmt.eprint(USAGE)
 		os.exit(1)
