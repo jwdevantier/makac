@@ -65,6 +65,8 @@ register_fs_primitives :: proc(v: ^VM) {
 	lua.setfield(L, -2, "mktemp_file")
 	lua.pushcclosure(L, _makac_fs_sha256, 0)
 	lua.setfield(L, -2, "sha256")
+	lua.pushcclosure(L, _makac_fs_symlink, 0)
+	lua.setfield(L, -2, "symlink")
 	// flat alias — the prelude's package enumeration predates submodules
 	register(v, "listdir", _makac_listdir)
 }
@@ -326,4 +328,25 @@ _mktemp_pattern :: proc(L: ^lua.State) -> string {
 		return fmt.tprintf("%s*", prefix)
 	}
 	return "makac-*"
+}
+
+// makac.fs.symlink(target, link) — make `link` a symbolic link pointing at
+// `target`. An existing entry at `link` is replaced first: the LSP mirror
+// (design/luacats.md) rewrites links on every run, and remove() refusing a
+// non-empty directory is the guard against clobbering real content. Raises on
+// failure (creating a link is a statement, not a query).
+@(private = "file")
+_makac_fs_symlink :: proc "c" (L: ^lua.State) -> c.int {
+	context = runtime.default_context()
+	target := check_path_string(L, 1)
+	link := check_path_string(L, 2)
+	if rerr := os.remove(link); rerr != nil && rerr != .Not_Exist {
+		errmsg := fmt.tprintf("cannot replace '%s': %v", link, os.error_string(rerr))
+		return c.int(lua.L_error(L, "makac.fs: symlink: %s", cstring(raw_data(errmsg))))
+	}
+	if serr := os.symlink(target, link); serr != nil {
+		errmsg := fmt.tprintf("cannot symlink '%s' -> '%s': %v", link, target, os.error_string(serr))
+		return c.int(lua.L_error(L, "makac.fs: symlink: %s", cstring(raw_data(errmsg))))
+	}
+	return 0
 }

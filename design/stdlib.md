@@ -248,6 +248,7 @@ makac.fs.write_file(path, data, { atomic = }?)
 makac.fs.stat(path)  -> { type =, size =, mtime_ns = } | nil
 makac.fs.mktemp_dir(prefix?) -> path     -- created, mode 0700; caller removes
 makac.fs.mktemp_file(prefix?) -> path    -- created empty; io.open for writing
+makac.fs.symlink(target, link)           -- create/replace a symlink at `link`
 ```
 
 * **`read_file`** — one-call slurp, `nil, err` on failure (the `listdir`
@@ -267,6 +268,10 @@ makac.fs.mktemp_file(prefix?) -> path    -- created empty; io.open for writing
   anything — race-prone and file-only. Ruby: `Dir.mktmpdir`, `Tempfile`;
   Odin: `core:os.make_directory_temp`.) *Callers*: stage scratch in
   `images.md`; anywhere a transfer is staged.
+* **`symlink`** — create/replace a link: any existing entry at `link` is
+  removed first (a non-empty directory makes `remove` fail, so real content
+  is never clobbered). Added for the LuaLS alias tree — `<data>/pkgs/<id>` ->
+  `<code>/lib` (design/luacats.md). *Caller*: `makac.luals_setup`.
 
 ## `makac.fs` — hashing *(status: done)*
 
@@ -365,7 +370,7 @@ Covers `images.md`'s "generate an instance id" without shelling out to
 * Globbing — `fs.listdir` + Lua patterns covers it.
 * base64 — shell out; rare.
 * `which()` — `exec` + `$PATH` covers it.
-* `chmod`/`symlink`/`readlink` — deferred until a concrete caller exists.
+* `chmod`/`readlink` — deferred until a concrete caller exists.
 * `sleep_ms`/`now_ms` and other unit-suffixed time variants — one unit
   (ns), `ns_per_*` constants.
 

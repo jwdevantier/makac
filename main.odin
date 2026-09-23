@@ -117,6 +117,9 @@ main :: proc() {
 			if lerr.message != "" {delete(lerr.message)}
 			err, ok = vm.run_file(v, pargs.value[0])
 		}
+		// design/luacats.md: install/refresh the stub + package aliases
+		// (best-effort).
+		install_luals(v)
 		// design/target.md: "the runner closes every target when the
 		// workflow finishes" — unconditionally, even when the workflow (or
 		// package loading above — package-provided actions can create
@@ -179,10 +182,30 @@ Then run 'makac fetch' again.
 			os.exit(1)
 		}
 		if ferr.message != "" {delete(ferr.message)}
+		// design/luacats.md: install/refresh the LuaLS stubs (best-effort)
+		install_luals(v)
 	case:
 		fmt.eprint(USAGE)
 		os.exit(1)
 	}
+}
+
+// install_luals runs the prelude's makac.luals_setup (design/luacats.md):
+// write the embedded base stub and package mirror for the project. Best-effort
+// — makac.luals_setup swallows its own runtime errors, so a non-empty error
+// here means the function itself raised (a makac bug), never user error.
+install_luals :: proc(v: ^vm.VM) -> bool {
+	called, err := vm.call_named(v, "makac.luals_setup")
+	if !called {
+		fmt.eprintf("makac: warning: LuaLS stub install skipped (no makac.luals_setup)\n")
+		return false
+	}
+	if err.message != "" {
+		fmt.eprintf("makac: warning: LuaLS stub install failed: %s\n", err.message)
+		delete(err.message)
+		return false
+	}
+	return true
 }
 
 // Print an error to stderr; Lua-side errors already carry the "makac: "

@@ -1149,3 +1149,87 @@ function makac.load_packages(data_dir)
 	end
 	return #defs
 end
+
+
+-- ==== LuaLS stubs (design/luacats.md) ====
+
+-- Install/refresh what lua-language-server needs to see makac's Lua API:
+--   <data_dir>/makac.lua   the base stub (embedded in the binary)
+--   <data_dir>/pkgs/<id>   -> <package root>/lib, so that
+--                          require("pkgs/<id>/<rel>") resolves to source
+-- and point the project's .luarc.json at the data dir as its single library
+-- root. Idempotent and best-effort: a failure warns on stderr, never fails the
+-- workflow (a broken install costs editor features, never a run).
+function makac.luals_setup()
+	local data_dir = makac.data_dir
+	if type(data_dir) ~= "string" or data_dir == "" then
+		return
+	end
+	local ok, err = pcall(function()
+		-- One tree, under the data dir:
+		--   <data>/makac.lua       the stub (makac, step, ...)
+		--   <data>/pkgs/<id>  ->   <package>/lib    the require alias
+		-- and ONE library root, the data dir itself. The alias and the code it
+		-- points at are then under the SAME root, so LuaLS resolves the symlink
+		-- to a single file and indexes it once. (Two roots exposing the same
+		-- file is what produced duplicate definitions.)
+		makac.fs.mkdir_p(data_dir .. "/pkgs")
+
+		-- migration from the old <data>/luals layout (stub + mirror): remove the
+		-- stale tree so it cannot be indexed a second time under the one root.
+		if makac.fs.stat(data_dir .. "/luals") ~= nil then
+			pcall(function() makac.fs.open_dir(data_dir):remove("luals") end)
+		end
+
+		local stub = makac.luals_stub
+		if type(stub) == "string" and stub ~= "" then
+			local stub_path = data_dir .. "/makac.lua"
+			if makac.fs.read_file(stub_path) ~= stub then
+				makac.fs.write_file(stub_path, stub, { atomic = true })
+			end
+		end
+
+		-- alias targets come from the package DEFINITIONS, so this works
+		-- straight after `makac fetch` without loading (running) any package.
+		local okdefs, defs = pcall(makac.read_package_defs, data_dir)
+		if okdefs and type(defs) == "table" then
+			for _, def in ipairs(defs) do
+				local okdir, root = pcall(makac.resolve_pkg_dir, def, data_dir)
+				if okdir and type(root) == "string" and makac.fs.stat(root .. "/lib") ~= nil then
+					makac.fs.symlink(root .. "/lib", data_dir .. "/pkgs/" .. def.id)
+				end
+			end
+		end
+
+		-- .luarc.json: makac owns `workspace.library` and points it at the one
+		-- root, the data dir; every other key is preserved.
+		local root_dir = data_dir:match("^(.*)/[^/]+$") or "."
+		local name = data_dir:match("([^/]+)$") or ".makac"
+		local entry = "./" .. name
+		local luarc = root_dir .. "/.luarc.json"
+
+		if makac.fs.stat(root_dir .. "/.luarc.jsonc") ~= nil then
+			io.stderr:write(("makac: %s/.luarc.jsonc present; add %q to workspace.library yourself\n"):format(root_dir, entry))
+			return
+		end
+
+		local raw = makac.fs.read_file(luarc)
+		local cfg = {}
+		if raw ~= nil then
+			local pok, parsed = pcall(makac.json.loads, raw)
+			if not pok or type(parsed) ~= "table" then
+				io.stderr:write("makac: cannot parse " .. luarc .. "; leaving it untouched\n")
+				return
+			end
+			cfg = parsed
+		end
+		cfg["workspace.library"] = { entry }
+		local out = makac.json.dumps(cfg) .. "\n"
+		if raw ~= out then
+			makac.fs.write_file(luarc, out, { atomic = true })
+		end
+	end)
+	if not ok then
+		io.stderr:write("makac: warning: LuaLS stub install failed: " .. tostring(err) .. "\n")
+	end
+end
