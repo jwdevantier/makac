@@ -626,7 +626,7 @@ end
 --   spec.port     (optional) default 22
 --   spec.options  (optional) extra OpenSSH options, e.g. { IdentityFile = "..." }
 --                 (string keys -> string/number/bool values)
--- Backed by an SSH session object (makac.ssh_open): the generated ssh config
+-- Backed by an SSH session object (makac._ssh_open): the generated ssh config
 -- sets ControlMaster/ControlPath/ControlPersist under the session's own state
 -- dir, so the first command authenticates and everything after multiplexes
 -- over it. No connection happens at construction — only config generation.
@@ -638,7 +638,7 @@ function makac.new_ssh_target(name, spec)
 		"makac.new_ssh_target: spec.host must be a non-empty string")
 	assert(type(spec.user) == "string" and spec.user ~= "",
 		"makac.new_ssh_target: spec.user must be a non-empty string")
-	local sess = makac.ssh_open(name, {
+	local sess = makac._ssh_open(name, {
 		host = spec.host, user = spec.user,
 		port = spec.port, options = spec.options,
 	})
@@ -1181,7 +1181,7 @@ function makac.luals_setup()
 			pcall(function() makac.fs.open_dir(data_dir):remove("luals") end)
 		end
 
-		local stub = makac.luals_stub
+		local stub = makac._luals_stub
 		if type(stub) == "string" and stub ~= "" then
 			local stub_path = data_dir .. "/makac.lua"
 			if makac.fs.read_file(stub_path) ~= stub then

@@ -165,7 +165,7 @@ function Dir:remove(sub) end
 ---@field pid_alive fun(pid: integer): boolean
 ---@field random_hex fun(n: integer): string
 ---@field download fun(url: string, sha256?: string, cache_dir?: string): string
----@field ssh_open fun(name: string, spec: any): Target
+---@field _ssh_open fun(name: string, spec: any): Target
 ---@field new_ssh_target fun(name: string, spec: SshSpec): Target
 ---@field qmp_open fun(vm: any): any
 ---@field defer fun(fn: fun()): any
@@ -174,7 +174,7 @@ function Dir:remove(sub) end
 ---@field time MakacTime
 ---@field env MakacEnv
 ---@field json MakacJson
----@field luals_stub string
+---@field _luals_stub string
 ---@field luals_setup fun()
 ---@field load_packages fun(data_dir?: string): integer
 ---@field fetch_all fun(data_dir?: string): integer

@@ -43,7 +43,7 @@ package's own source is opened.
 The stub is source at `luals/makac.lua` (`---@meta`) and is embedded in the
 binary with `#load`, exactly like `prelude.lua` — the types always match the
 running version, with no separate artifact to install or pin. It is exposed
-to Lua as `makac.luals_stub` (`vm/luals.odin`) and written to the project as
+to Lua as `makac._luals_stub` (`vm/luals.odin`) and written to the project as
 `<data>/makac.lua`.
 
 ## Installation rules

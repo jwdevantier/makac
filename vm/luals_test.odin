@@ -50,9 +50,9 @@ test_luals_setup_installs_stub_and_alias :: proc(t: ^testing.T) {
 	src := `
 makac.luals_setup()
 
-assert(#makac.luals_stub > 0, "embedded stub must be non-empty")
+assert(#makac._luals_stub > 0, "embedded stub must be non-empty")
 local stub = makac.fs.read_file(makac.data_dir .. "/makac.lua")
-assert(stub == makac.luals_stub, "base stub must be installed verbatim")
+assert(stub == makac._luals_stub, "base stub must be installed verbatim")
 
 local link = makac.fs.stat(makac.data_dir .. "/pkgs/demo")
 assert(link ~= nil and link.type == "link", "alias must be a symlink")

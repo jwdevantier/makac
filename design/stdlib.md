@@ -35,7 +35,7 @@ Taste rules for what gets in:
 | `makac.random_hex` | **done** | `core:crypto.rand_bytes` + `encoding/hex` (odd-n truncation) |
 | `makac.exec` opts: `join`, `timeout_s`, `on_line` | **done** | incl. blocking-poll drain loop (no busy spin); shell action passes `with.join`/`timeout_s`/`on_line` (remote: `join` via `2>&1`, the others raise "not supported on remote targets yet") |
 | `makac.qmp_open` client object | **done** | `feasibility.md`, "The QMP binding" |
-| `makac.ssh_open` session object | **done** | wrapped by `makac.new_ssh_target(name, spec)` (prelude) |
+| `makac._ssh_open` session object | **done** | wrapped by `makac.new_ssh_target(name, spec)` (prelude) |
 
 Suggested landing order (dependency-driven):
 
@@ -65,7 +65,7 @@ Implementation notes that earned their keep (don't relearn):
 Two layers, on purpose:
 
 * **Flat `makac.*`** stays the *orchestrator* vocabulary: `exec`, `spawn`,
-  `download`, `pid_alive`, `ssh_open`, `qmp_open` — things only makac does.
+  `download`, `pid_alive`, `_ssh_open`, `qmp_open` — things only makac does.
 * **Submodules** hold the *language gap-fillers* — what Lua-the-language
   should have had (the htt precedent: `htt.fs`, `htt.time`, `htt.json`,
   `htt.env`): `makac.fs`, `makac.time`, `makac.json`, `makac.env`.
@@ -73,7 +73,7 @@ Two layers, on purpose:
 ## Conventions
 
 Same as the existing `makac.*` primitives (`exec`, `download`, `listdir`,
-`ssh_open`, `qmp_open`), plus:
+`_ssh_open`, `qmp_open`), plus:
 
 * **Errors raise** — bad arguments, exhausted resources, failed syscalls that
   the caller cannot reasonably ignore. **Absence is not an error**: where a
@@ -158,7 +158,7 @@ makac.fs.path_join(a, b, ...) -> path -- variadic; empty elements dropped
 makac.fs.null_file() -> path          -- "/dev/null" (spawn's stdin default)
 ```
 
-A `path` is a userdata (same object discipline as `ssh_open`/`qmp_open`:
+A `path` is a userdata (same object discipline as `_ssh_open`/`qmp_open`:
 metatable, no resources to close, `__gc` frees nothing Lua doesn't already
 manage). Its surface is deliberately minimal:
 

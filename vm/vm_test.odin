@@ -2209,7 +2209,7 @@ assert(not ok1 and e1:find("ghost", 1, true) and e1:find("makac fetch", 1, true)
 	close(v3)
 }
 
-// makac.ssh_open session objects: method dispatch, introspection fields,
+// makac._ssh_open session objects: method dispatch, introspection fields,
 // lifecycle (idempotent close, closed-session refusals), __gc safety, and
 // removal of the old integer-handle API. No stub ssh here (PATH env mutation
 // would race test_ssh_target, which owns the stubbing): this test drives only
@@ -2230,7 +2230,7 @@ test_ssh_session_object :: proc(t: ^T) {
 	err, ok := run_string(
 		v,
 		`
-		local sess = assert(makac.ssh_open("obj", {
+		local sess = assert(makac._ssh_open("obj", {
 			host = "h", user = "u", port = 2223,
 		}))
 		-- introspection + identity
@@ -2260,7 +2260,7 @@ test_ssh_session_object :: proc(t: ^T) {
 		assert(tostring(sess):find("closed", 1, true))
 
 		-- a never-closed session collected by the GC: __gc frees memory only
-		local leaked = makac.ssh_open("leaked", { host = "h", user = "u" })
+		local leaked = makac._ssh_open("leaked", { host = "h", user = "u" })
 		leaked = nil
 		collectgarbage("collect")
 	`,

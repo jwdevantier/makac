@@ -159,7 +159,6 @@ entry is dropped and re-fetched).
 | Primitive | Description |
 | --- | --- |
 | `makac.random_hex(n)` | `n` random lowercase hex chars (n must be positive). |
-| `makac.ssh_open(name, spec)` | Low-level SSH session: `{ host, user, port?, options? }` → session with `run`/`put`/`get`/`close` methods and `name`/`port` fields. Backs `makac.new_ssh_target`; state (including the generated ssh config with `ControlMaster`/`ControlPath`/`ControlPersist`) lives under `<data_dir>/targets/<name>/`. |
 | `makac.qmp_open(...)` | QEMU Machine Protocol client (used by the QEMU package; plain tables on the Lua side — the JSON wire format is never part of the surface). |
 
 ## The full register order (for reference)

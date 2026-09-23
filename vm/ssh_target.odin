@@ -14,7 +14,7 @@ import "../ssh"
 
 // Remote (SSH) session primitive (design/target.md), an object-style Lua API:
 //
-//   local sess = makac.ssh_open(name, { host, user, port?, options? })
+//   local sess = makac._ssh_open(name, { host, user, port?, options? })
 //   sess:run(command, opts?) -> { code, stdout, stderr }
 //   sess:put(local_path, remote_path)   -- raises on failure
 //   sess:get(remote_path, local_path)   -- raises on failure
@@ -60,7 +60,7 @@ register_ssh_primitives :: proc(v: ^VM) {
 		lua.setfield(L, -2, "__tostring")
 	}
 	lua.pop(L, 1)
-	register(v, "ssh_open", _makac_ssh_open)
+	register(v, "_ssh_open", _makac_ssh_open)
 }
 
 // __index: method dispatch plus introspection fields (name, port).
@@ -130,7 +130,7 @@ _ssh_capture :: proc(
 	return exec_capture(argv[:], "", nil, stdin_data)
 }
 
-// makac.ssh_open(name, spec) -> session userdata
+// makac._ssh_open(name, spec) -> session userdata
 // name: session identity, used in errors and the state dir
 // <data_dir>/targets/<name>/ (so tame: [A-Za-z0-9._-]).
 // spec = { host, user, port?, options? } — options: ssh option overrides,
@@ -143,7 +143,7 @@ _makac_ssh_open :: proc "c" (L: ^lua.State) -> c.int {
 		l: c.size_t
 		s := lua.tolstring(L, 1, &l)
 		if s == nil || l == 0 {
-			return c.int(lua.L_error(L, "makac.ssh_open: name must be a non-empty string"))
+			return c.int(lua.L_error(L, "makac._ssh_open: name must be a non-empty string"))
 		}
 		name_c = s
 	}
@@ -152,22 +152,22 @@ _makac_ssh_open :: proc "c" (L: ^lua.State) -> c.int {
 
 	data_dir := _data_dir(L)
 	if data_dir == "" {
-		return c.int(lua.L_error(L, "makac.ssh_open: no data directory (makac.data_dir is unset)"))
+		return c.int(lua.L_error(L, "makac._ssh_open: no data directory (makac.data_dir is unset)"))
 	}
 
 	host, host_ok := _opt_string_field(L, 2, "host")
 	user, user_ok := _opt_string_field(L, 2, "user")
 	if !host_ok || host == "" {
-		return c.int(lua.L_error(L, "makac.ssh_open: spec.host must be a non-empty string"))
+		return c.int(lua.L_error(L, "makac._ssh_open: spec.host must be a non-empty string"))
 	}
 	if !user_ok || user == "" {
-		return c.int(lua.L_error(L, "makac.ssh_open: spec.user must be a non-empty string"))
+		return c.int(lua.L_error(L, "makac._ssh_open: spec.user must be a non-empty string"))
 	}
 	// the name becomes a directory under <data_dir>/targets/ — keep it
 	// tame (no path traversal, no ':' which makac uses as a separator)
 	for r in name {
 		if !strings.contains_rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-", r) {
-			return c.int(lua.L_error(L, "makac.ssh_open: invalid name '%s' (allowed: [A-Za-z0-9._-])", name_c))
+			return c.int(lua.L_error(L, "makac._ssh_open: invalid name '%s' (allowed: [A-Za-z0-9._-])", name_c))
 		}
 	}
 
@@ -176,11 +176,11 @@ _makac_ssh_open :: proc "c" (L: ^lua.State) -> c.int {
 		port = int(lua.tointeger(L, -1))
 		if port < 1 || port > 65535 {
 			lua.pop(L, 1)
-			return c.int(lua.L_error(L, "makac.ssh_open: spec.port out of range [1;65535]"))
+			return c.int(lua.L_error(L, "makac._ssh_open: spec.port out of range [1;65535]"))
 		}
 	} else if t != c.int(lua.Type.NIL) {
 		lua.pop(L, 1)
-		return c.int(lua.L_error(L, "makac.ssh_open: spec.port must be a number"))
+		return c.int(lua.L_error(L, "makac._ssh_open: spec.port must be a number"))
 	}
 	lua.pop(L, 1)
 
@@ -240,7 +240,7 @@ _makac_ssh_open :: proc "c" (L: ^lua.State) -> c.int {
 	)
 	if gerr.kind != .None {
 		msg := strings.clone_to_cstring(ssh.error_string(gerr), context.temp_allocator)
-		return c.int(lua.L_error(L, "makac.ssh_open: failed to set up session '%s': %s",
+		return c.int(lua.L_error(L, "makac._ssh_open: failed to set up session '%s': %s",
 			strings.clone_to_cstring(name, context.temp_allocator), msg))
 	}
 
