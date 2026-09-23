@@ -5,7 +5,7 @@
 ---@diagnostic disable: missing-fields, lowercase-global
 -- LuaCATS definitions for makac's injected globals and Lua stdlib extensions
 -- (design/luacats.md). This file is embedded in the binary and installed into
--- a project's data directory by makac.luals_setup(); it is definitions-only
+-- a project's data directory by makac._luals_setup(); it is definitions-only
 -- and is never executed.
 
 -- --- shell / processes ----------------------------------------------------
@@ -175,7 +175,7 @@ function Dir:remove(sub) end
 ---@field env MakacEnv
 ---@field json MakacJson
 ---@field _luals_stub string
----@field luals_setup fun()
+---@field _luals_setup fun()
 ---@field load_packages fun(data_dir?: string): integer
 ---@field fetch_all fun(data_dir?: string): integer
 ---@field read_package_defs fun(data_dir?: string): table[]

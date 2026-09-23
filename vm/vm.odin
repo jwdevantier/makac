@@ -63,7 +63,7 @@ new :: proc(data_dir: string = "") -> ^VM {
 	// The embedded prelude defines the workflow DSL every script relies on;
 	// evaluate it now so no user-facing Lua can run before it exists.
 	must_init_prelude(v)
-	// the embedded LuaCATS stub, read back by makac.luals_setup (design/luacats.md)
+	// the embedded LuaCATS stub, read back by makac._luals_setup (design/luacats.md)
 	expose_luals_stub(v)
 	// expose the data directory as makac.data_dir (Lua helpers like
 	// fetch_all/read_package_defs default to it); may be the empty string

@@ -608,7 +608,7 @@ makac.host = makac.make_target("host", "host", {
 -- command: once building the `shell -c "<...>"` script (shell action) and
 -- once quoting that whole script for the outer login-shell transport (remote
 -- target run).
-function makac.shquote(word)
+function makac._shquote(word)
 	word = tostring(word)
 	if word ~= "" and word:match("^[%w@%_%%=:%.,%/%+%-]+$") then
 		return word
@@ -672,10 +672,10 @@ function makac.new_ssh_target(name, spec)
 					for _, k in ipairs(names) do
 						assert(type(k) == "string" and k:match("^[%a_][%w_]*$"),
 							("target run: opts.env: '%s' is not a valid variable name"):format(tostring(k)))
-						sb[#sb + 1] = k .. "=" .. makac.shquote(opts.env[k])
+						sb[#sb + 1] = k .. "=" .. makac._shquote(opts.env[k])
 					end
 				end
-				for _, arg in ipairs(argv) do sb[#sb + 1] = makac.shquote(arg) end
+				for _, arg in ipairs(argv) do sb[#sb + 1] = makac._shquote(arg) end
 				argv = { shell, "-c", table.concat(sb, " ") }
 			end
 			-- assemble ONE command string for the remote login shell:
@@ -686,13 +686,13 @@ function makac.new_ssh_target(name, spec)
 			if opts.chdir then
 				assert(type(opts.chdir) == "string" and opts.chdir ~= "",
 					"target run: opts.chdir must be a non-empty string")
-				words[#words + 1] = "cd " .. makac.shquote(opts.chdir) .. " &&"
+				words[#words + 1] = "cd " .. makac._shquote(opts.chdir) .. " &&"
 			end
 			assert(opts.timeout_s == nil,
 				"target run: opts.timeout_s is not supported on remote targets (yet)")
 			assert(opts.on_line == nil,
 				"target run: opts.on_line is not supported on remote targets (yet)")
-			for _, arg in ipairs(argv) do words[#words + 1] = makac.shquote(arg) end
+			for _, arg in ipairs(argv) do words[#words + 1] = makac._shquote(arg) end
 			-- join: there IS no separate stderr to be had over one ssh channel
 			-- when asked to merge; redirect in the remote command line (2>&1)
 			local cmdline = table.concat(words, " ")
@@ -970,7 +970,7 @@ function makac.resolve_fetcher(def)
 end
 
 -- Human-readable name of a package entry's fetcher (for progress/reporting).
-function makac.fetcher_name(def)
+function makac._fetcher_name(def)
 	if type(def.fetcher) == "string" then return def.fetcher end
 	return "<function>"
 end
@@ -998,14 +998,14 @@ end
 
 -- Pretty-print the package definitions from packages.lua (one line per
 -- package: index, id, fetcher name).
-function makac.print_package_defs(defs)
+function makac._print_package_defs(defs)
 	if #defs == 0 then
 		print("no packages defined.")
 		return
 	end
 	print(("defined packages (#%d):"):format(#defs))
 	for i, def in ipairs(defs) do
-		print(("  %d. %s (fetcher: %s)"):format(i, def.id, makac.fetcher_name(def)))
+		print(("  %d. %s (fetcher: %s)"):format(i, def.id, makac._fetcher_name(def)))
 	end
 end
 
@@ -1028,7 +1028,7 @@ function makac.fetch_all(data_dir)
 	for _, def in ipairs(defs) do
 		local dest = data_dir .. "/packages/" .. def.id
 		local fetcher = makac.resolve_fetcher(def) -- errors if unknown
-		print(("fetching %s via %s..."):format(def.id, makac.fetcher_name(def)))
+		print(("fetching %s via %s..."):format(def.id, makac._fetcher_name(def)))
 		local ok, err = pcall(fetcher, def, dest)
 		if not ok then
 			error(("makac: fetch: package '%s': %s"):format(def.id, tostring(err)), 0)
@@ -1160,7 +1160,7 @@ end
 -- and point the project's .luarc.json at the data dir as its single library
 -- root. Idempotent and best-effort: a failure warns on stderr, never fails the
 -- workflow (a broken install costs editor features, never a run).
-function makac.luals_setup()
+function makac._luals_setup()
 	local data_dir = makac.data_dir
 	if type(data_dir) ~= "string" or data_dir == "" then
 		return

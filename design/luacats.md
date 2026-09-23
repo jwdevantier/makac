@@ -48,7 +48,7 @@ to Lua as `makac._luals_stub` (`vm/luals.odin`) and written to the project as
 
 ## Installation rules
 
-`makac.luals_setup()` (prelude) runs after package loading on `makac run`
+`makac._luals_setup()` (prelude) runs after package loading on `makac run`
 (and via `makac lsp`). It is **idempotent** and **best-effort**: it never
 fails a workflow; a problem is a warning on stderr, and a broken install only
 costs editor features, never a run.

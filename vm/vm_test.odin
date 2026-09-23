@@ -1143,7 +1143,7 @@ test_fetch_package_list_validation :: proc(t: ^T) {
 		local f = io.open(makac.data_dir .. "/packages/inline", "r")
 		assert(f == nil or f:read("a") == nil) -- exists as a dir (or empty)
 		if f then f:close() end
-		makac.print_package_defs(makac.read_package_defs())`,
+		makac._print_package_defs(makac.read_package_defs())`,
 	)
 	defer delete(ferr2.message)
 	testing.expect(t, fok2, ferr2.message)

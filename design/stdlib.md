@@ -271,7 +271,7 @@ makac.fs.symlink(target, link)           -- create/replace a symlink at `link`
 * **`symlink`** — create/replace a link: any existing entry at `link` is
   removed first (a non-empty directory makes `remove` fail, so real content
   is never clobbered). Added for the LuaLS alias tree — `<data>/pkgs/<id>` ->
-  `<code>/lib` (design/luacats.md). *Caller*: `makac.luals_setup`.
+  `<code>/lib` (design/luacats.md). *Caller*: `makac._luals_setup`.
 
 ## `makac.fs` — hashing *(status: done)*
 

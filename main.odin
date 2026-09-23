@@ -190,14 +190,14 @@ Then run 'makac fetch' again.
 	}
 }
 
-// install_luals runs the prelude's makac.luals_setup (design/luacats.md):
+// install_luals runs the prelude's makac._luals_setup (design/luacats.md):
 // write the embedded base stub and package mirror for the project. Best-effort
-// — makac.luals_setup swallows its own runtime errors, so a non-empty error
+// — makac._luals_setup swallows its own runtime errors, so a non-empty error
 // here means the function itself raised (a makac bug), never user error.
 install_luals :: proc(v: ^vm.VM) -> bool {
-	called, err := vm.call_named(v, "makac.luals_setup")
+	called, err := vm.call_named(v, "makac._luals_setup")
 	if !called {
-		fmt.eprintf("makac: warning: LuaLS stub install skipped (no makac.luals_setup)\n")
+		fmt.eprintf("makac: warning: LuaLS stub install skipped (no makac._luals_setup)\n")
 		return false
 	}
 	if err.message != "" {

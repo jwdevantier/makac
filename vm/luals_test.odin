@@ -6,7 +6,7 @@ import "core:os"
 import "core:strings"
 import "core:testing"
 
-// makac.luals_setup (design/luacats.md) writes the embedded base stub into the
+// makac._luals_setup (design/luacats.md) writes the embedded base stub into the
 // data dir and one <data>/pkgs/<id> alias per package DEFINITION (so it works
 // right after `makac fetch`, without loading packages), and points the
 // project .luarc.json's workspace.library at the data dir as the single root.
@@ -48,7 +48,7 @@ test_luals_setup_installs_stub_and_alias :: proc(t: ^testing.T) {
 	defer close(v)
 
 	src := `
-makac.luals_setup()
+makac._luals_setup()
 
 assert(#makac._luals_stub > 0, "embedded stub must be non-empty")
 local stub = makac.fs.read_file(makac.data_dir .. "/makac.lua")
@@ -68,7 +68,7 @@ assert(generated:find("workspace.library", 1, true), "must list workspace.librar
 
 -- a hand-written .luarc.json must be preserved, never clobbered
 makac.fs.write_file(luarc, "CUSTOM\n")
-makac.luals_setup()
+makac._luals_setup()
 assert(makac.fs.read_file(luarc) == "CUSTOM\n", "existing .luarc.json must be preserved")
 `
 	err, ok := run_string(v, src, "test_luals_setup")
@@ -145,7 +145,7 @@ test_luals_setup_single_root :: proc(t: ^testing.T) {
 	src := strings.concatenate(
 		[]string{
 			`
-makac.luals_setup()
+makac._luals_setup()
 local cfg = makac.json.loads(assert(makac.fs.read_file("`,
 			luarc,
 			`")))

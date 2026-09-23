@@ -9,7 +9,7 @@ import lua "vendor:lua/5.4"
 // The LuaCATS stub for makac's injected globals and stdlib (design/luacats.md),
 // embedded in the binary like the prelude so the types always match the
 // running version — no separate artifact to install or pin. The prelude's
-// makac.luals_setup reads it back from makac._luals_stub and writes it into a
+// makac._luals_setup reads it back from makac._luals_stub and writes it into a
 // project's data directory.
 Luals_Stub :: #load("../luals/makac.lua", string)
 
