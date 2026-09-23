@@ -6,7 +6,7 @@
 -- user-facing Lua, by vm.new().
 --
 -- Later tasks grow this into the real DSL (step, built-in actions, fact
--- finders, target wrappers, the pkgs: module searcher).
+-- finders, target wrappers, the pkgs/ module searcher).
 
 -- `makac` may already exist: it holds the Odin-side primitives registered
 -- before the prelude runs (e.g. makac.exec). Never overwrite it blindly.
@@ -1039,10 +1039,10 @@ function makac.fetch_all(data_dir)
 end
 
 
--- ==== Packages: pkgs: module loader + loading into the registries (design/packages.md) ====
+-- ==== Packages: pkgs/ module loader + loading into the registries (design/packages.md) ====
 
--- Searcher for 'pkgs:<id>/<a>/<b>' module names: a loaded package's ./lib
--- directory is the root (design/packages.md), so 'pkgs:foo/a/b' maps to
+-- Searcher for 'pkgs/<id>/<a>/<b>' module names: a loaded package's ./lib
+-- directory is the root (design/packages.md), so 'pkgs/foo/a/b' maps to
 -- <package root>/lib/a/b.lua ('/' separates, '.lua' is appended). The
 -- package root comes from makac.pkg_dirs (see makac.load_packages):
 -- .makac/packages/<id> for fetched packages, the source path itself for
@@ -1050,9 +1050,9 @@ end
 -- 'module not found' require error (returning a string from a searcher
 -- appends it to require's error).
 local function pkgs_searcher(modname)
-	local id, rel = modname:match("^pkgs:([^/]+)/(.+)$")
+	local id, rel = modname:match("^pkgs/([^/]+)/(.+)$")
 	if not id then
-		return nil -- not a pkgs: module; defer to the other searchers
+		return nil -- not a pkgs/ module; defer to the other searchers
 	end
 	-- pkg_dirs maps each loaded package id to its code root (populated by
 	-- makac.load_packages BEFORE running each package's makac.lua, so a
@@ -1070,7 +1070,7 @@ local function pkgs_searcher(modname)
 end
 table.insert(package.searchers, pkgs_searcher)
 
--- makac.pkg_dirs[id] = the package's code root on disk (used by the pkgs:
+-- makac.pkg_dirs[id] = the package's code root on disk (used by the pkgs/
 -- module searcher). Populated by makac.load_packages: into
 -- .makac/packages/<id>/ for fetched packages; the source path itself for
 -- packages with the 'filesystem' fetcher (load-in-place development).
@@ -1087,7 +1087,7 @@ makac.pkg_dirs = makac.pkg_dirs or {}
 -- Each package's makac.lua runs in this VM and its exports merge into
 -- makac's registries: `fetchers` and `actions` tables of name -> function,
 -- each under the full key '<id>:<name>'. makac.pkg_dirs[<id>] is set BEFORE
--- makac.lua runs, so a package can require("pkgs:<own id>/...") its own
+-- makac.lua runs, so a package can require("pkgs/<own id>/...") its own
 -- lib/ while loading. Missing makac.lua, non-function exports and name
 -- collisions (checked against BOTH registries and any already-loaded
 -- package) are errors naming the package. No packages.lua means no packages

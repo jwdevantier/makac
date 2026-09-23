@@ -29,8 +29,8 @@ The package ships under the id `qemu`, so its actions are referenced as
   the "boot once, test many times" trick;
 - `qemu:qmp/send` / `qemu:qmp/poll` / `qemu:qmp/consume` — send QMP commands to
   a VM (e.g. hotplug a device) and handle its event stream;
-- plus library modules such as `require("pkgs:qemu/qmp")` (QMP command
-  constructors) and `require("pkgs:qemu/img")` (custom image builders).
+- plus library modules such as `require("pkgs/qemu/qmp")` (QMP command
+  constructors) and `require("pkgs/qemu/img")` (custom image builders).
 
 The [QEMU + NVMe example](examples/qemu-nvme.md) shows the whole loop these
 actions enable: build an image, boot once, snapshot, resume in seconds, hotplug

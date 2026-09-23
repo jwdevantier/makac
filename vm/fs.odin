@@ -72,7 +72,7 @@ register_fs_primitives :: proc(v: ^VM) {
 // makac.fs.listdir(path) -> array of {name = <string>, is_dir = <bool>} or
 // (nil, err) when the directory cannot be read. Lua has no directory
 // listing, and the prelude needs one to enumerate fetched packages under
-// <datadir>/packages (see makac.load_packages and the pkgs: searcher).
+// <datadir>/packages (see makac.load_packages and the pkgs/ searcher).
 //
 // Returns (nil, err) instead of raising so Lua code can treat a missing
 // packages dir as "no packages fetched yet" rather than an error.

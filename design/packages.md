@@ -51,5 +51,5 @@ return {
 }
 ```
 
-If the package contains a `./lib` dir, that directory is added to the package loader under the key `pkgs:<id>` where `id` is the id of the entry in `packages.lua`. To access `./lib/a.lua` if the package had id 'foo', one would then write `require('pkgs:foo/a')`
+If the package contains a `./lib` dir, that directory is added to the package loader under the key `pkgs/<id>` where `id` is the id of the entry in `packages.lua`. To access `./lib/a.lua` if the package had id 'foo', one would then write `require('pkgs/foo/a')`
 

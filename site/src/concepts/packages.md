@@ -96,8 +96,8 @@ return {
 ```
 
 If the package contains a `./lib` directory, it is added to the package loader
-under the key `pkgs:<id>`: to access `./lib/a.lua` in a package with id `foo`,
-write `require("pkgs:foo/a")`. This is how workflows (and packages) share helper
+under the key `pkgs/<id>`: to access `./lib/a.lua` in a package with id `foo`,
+write `require("pkgs/foo/a")`. This is how workflows (and packages) share helper
 code with actions.
 
 ## Fetchers

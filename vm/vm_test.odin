@@ -1907,7 +1907,7 @@ assert(es2 == nil and type(err2) == "string")
 
 // A VM with a data dir can load a package declared in packages.lua:
 // makac.load_packages merges its exports under '<id>:<name>' keys and the
-// pkgs: searcher makes its lib/ require-able.
+// pkgs/ searcher makes its lib/ require-able.
 @(test)
 test_load_packages_and_pkgs_searcher :: proc(t: ^T) {
 	dir, derr := os.make_directory_temp("", "makac_vm_pkgs_*", context.allocator)
@@ -1956,22 +1956,22 @@ return { { id = "demo", fetcher = "fetchgit", with = { url = "unused" } } }`,
 		v,
 		`
 assert(makac.load_packages() == 1)
-local util = require("pkgs:demo/util")
+local util = require("pkgs/demo/util")
 assert(util.hello() == "pkg-lib-ok")
 local r = makac.run_action("demo:thing", nil)
 assert(r.out.did == "thing")
 assert(type(makac.registry.fetchers["demo:fetchio"]) == "function")
-local ok2, err2 = pcall(require, "pkgs:demo/missing")
-assert(not ok2 and err2:find("module 'pkgs:demo/missing' not found"), tostring(err2))
+local ok2, err2 = pcall(require, "pkgs/demo/missing")
+assert(not ok2 and err2:find("module 'pkgs/demo/missing' not found"), tostring(err2))
 `,
 		"test_load_packages",
 	)
 	if !ok {delete(err.message)}
-	testing.expect(t, ok, "load_packages + pkgs: searcher must work in-VM")
+	testing.expect(t, ok, "load_packages + pkgs/ searcher must work in-VM")
 }
 
 // The built-in `filesystem` fetcher: a package lives at with.path and is
-// loaded IN PLACE (its own directory, not .makac/packages/<id>). pkgs:
+// loaded IN PLACE (its own directory, not .makac/packages/<id>). pkgs/
 // requires resolve from the source path, so edits are picked up without any
 // refetch step. Fetching only validates the path + makac.lua.
 @(test)
@@ -2009,7 +2009,7 @@ test_filesystem_fetcher_in_place :: proc(t: ^T) {
 		os.write_entire_file_from_string(
 			strings.concatenate([]string{devpkg, "/makac.lua"}, context.temp_allocator),
 			`-- a package may require its own lib/ while loading
-local util = require("pkgs:mypkg.dev/util")
+local util = require("pkgs/mypkg.dev/util")
 return {
   actions = { dev_hello = function(w) return { out = { v = util.VAL } } end },
   -- packages may also contribute fetchers ('<id>:<name>'). This one just
@@ -2056,7 +2056,7 @@ assert(r.out.v == "in-place-v1", tostring(r.out.v))
 local st = step { uses = "mypkg.dev:dev_hello", name = "fs step" }
 assert(st.out.v == "in-place-v1")
 -- package-provided LIBRARY code from the workflow side
-local util = require("pkgs:mypkg.dev/util")
+local util = require("pkgs/mypkg.dev/util")
 assert(util.VAL == "in-place-v1")
 -- package-provided FETCHER: registered under '<id>:<name>' and callable
 local f = makac.registry.fetchers["mypkg.dev:devmark"]
@@ -2089,8 +2089,8 @@ mf:close()
 		v2,
 		`
 assert(makac.load_packages() == 1)
-package.loaded["pkgs:mypkg.dev/util"] = nil
-local util = require("pkgs:mypkg.dev/util")
+package.loaded["pkgs/mypkg.dev/util"] = nil
+local util = require("pkgs/mypkg.dev/util")
 assert(util.VAL == "in-place-v2", "edits must be picked up in place, got " .. tostring(util.VAL))
 `,
 		"test_filesystem_edit",

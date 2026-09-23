@@ -57,7 +57,7 @@ Target operations (`run`/`put`/`get`/`close`) are documented on the
 | `makac.fetch_all(data_dir?)` | Fetches every listed package in file order into `<data_dir>/packages/<id>/`. |
 | `makac.load_packages(data_dir?)` | Loads every listed package's `makac.lua` into the registries under `<id>:<name>`; sets `pkg_dirs` before each loads. No `packages.lua` → returns 0. |
 
-Package-provided `lib/` code is require-able as `require("pkgs:<id>/a/b")` via a
+Package-provided `lib/` code is require-able as `require("pkgs/<id>/a/b")` via a
 searcher the prelude installs (maps to `<package root>/lib/a/b.lua`).
 
 ## Odin-side primitives (VM-baked)
@@ -169,4 +169,4 @@ The VM registers, in order: QMP, time, json, fs, env, process (`pid_alive`),
 spawn, random, then the embedded prelude, then exposes `makac.data_dir`. The
 prelude defines `step`, the built-in actions (`shell`, `facts`), the fact
 finders (`os`, `env`), the target wrappers, the fetchers (`fetchurl`,
-`fetchgit`, `filesystem`), the package loader, and the `pkgs:` searcher.
+`fetchgit`, `filesystem`), the package loader, and the `pkgs/` searcher.

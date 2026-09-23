@@ -105,7 +105,7 @@ main :: proc() {
 		defer vm.close(v)
 		// Load fetched packages BEFORE evaluating the workflow (task23):
 		// their actions/fetchers join makac's registries as '<id>:<name>'
-		// and their lib/ is require-able via 'pkgs:<id>/...' (task22).
+		// and their lib/ is require-able via 'pkgs/<id>/...' (task22).
 		// Nothing fetched (.makac/packages absent or empty) is skipped
 		// silently — fetching is the user's explicit 'makac fetch' step,
 		// never automatic.

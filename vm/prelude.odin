@@ -5,7 +5,7 @@ package vm
 import "core:fmt"
 
 // Prelude is the embedded Lua stdlib (registries, `step`, built-in actions,
-// fact finders, target wrappers, the `pkgs:` module searcher). It lives in
+// fact finders, target wrappers, the `pkgs/` module searcher). It lives in
 // prelude.lua at the repository root and is baked into the binary with the
 // `#load` directive so a built makac is fully self-contained.
 Prelude :: #load("../prelude.lua", string)

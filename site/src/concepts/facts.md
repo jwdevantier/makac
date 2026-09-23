@@ -53,7 +53,7 @@ A finder value is either:
 
 - a **string** naming a built-in finder, or
 - a **function** — a custom finder, for example one imported from a package's
-  `lib/` directory (`require("pkgs:<id>/...")`, see
+  `lib/` directory (`require("pkgs/<id>/...")`, see
   [Packages & the data directory](packages.md)).
 
 ## Built-in finders

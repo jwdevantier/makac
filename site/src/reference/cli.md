@@ -46,7 +46,7 @@ makac run my_workflow.lua
 Before the workflow itself runs, makac loads every package listed in
 `.makac/packages.lua` (in file order), merging their actions and fetchers into
 the registries under their `<id>:` prefix and making their `lib/` require-able
-via `require("pkgs:<id>/...")`. A listed-but-not-fetched package aborts the run
+via `require("pkgs/<id>/...")`. A listed-but-not-fetched package aborts the run
 with an error telling you to run `makac fetch` first. No package list means no
 packages — silently.
 

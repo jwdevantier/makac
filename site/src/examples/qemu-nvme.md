@@ -192,7 +192,7 @@ assert(makac.exec({ "cp", raw.out.path, ns_img }).code == 0,
 The commands are built with the package's `qmp` library:
 
 ```lua
-local qmp = require("pkgs:qemu/qmp")
+local qmp = require("pkgs/qemu/qmp")
 
 local hot = step {
     name = "hotplug nvme controller",

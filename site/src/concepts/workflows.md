@@ -51,7 +51,7 @@ check_guest(vm2)
 
 There is no special file extension or directory convention — a workflow is any
 Lua file. A workflow can use `require` and local files, and packages fetched into
-the project can be loaded with `require("pkgs:<id>/...")` (see
+the project can be loaded with `require("pkgs/<id>/...")` (see
 [Packages & the data directory](packages.md)). Because a workflow is evaluated
 once, top to bottom, later steps see the results (and targets) of earlier steps
 as plain Lua values — chaining is a natural consequence:

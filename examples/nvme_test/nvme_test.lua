@@ -13,7 +13,7 @@
 --
 --   cd <your project> && makac run <path-to>/nvme_test.lua
 
-local qmp = require("pkgs:qemu/qmp")
+local qmp = require("pkgs/qemu/qmp")
 
 ----------------------------------------------------------------------------
 -- SITE-LOCAL VALUES — adjust to your host before running
