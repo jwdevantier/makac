@@ -81,6 +81,21 @@ jobs:
       - name: Checksum
         run: sha256sum "makac-linux-${{ matrix.target }}" > "makac-linux-${{ matrix.target }}.sha256"
 
+      # The binary is built against Alma's glibc 2.34. Prove it also runs on
+      # other mainstream glibc userspaces (a foreign libc, not the one it was
+      # built against). Images pinned by digest for reproducibility.
+      - name: Runs on other distros
+        run: |
+          for base in \
+            "ubuntu:22.04@sha256:b8b6ee6aa931ecd9d0d952abc34dc0e5f7c6a30c6bb71b079fe399fde0329c02" \
+            "debian:12@sha256:f37a335e82bca302e955fa39f9dfe28f1be618f016f8a2b56318e5a5111afc26"
+          do
+            echo "::group::makac-linux-${{ matrix.target }} on ${base%%@*}"
+            docker run --rm -v "$PWD:/work:ro" -w /work "$base" \
+              bash /work/scripts/smoke-test.sh "/work/makac-linux-${{ matrix.target }}"
+            echo "::endgroup::"
+          done
+
       - uses: actions/upload-artifact@v4
         with:
           name: makac-linux-${{ matrix.target }}

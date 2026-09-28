@@ -54,9 +54,9 @@ echo "==> installing build dependencies"
 # The AlmaLinux 9 base image ships `curl-minimal`, which already provides the
 # `curl` CLI but conflicts with the full `curl` package; don't request `curl`
 # here. Everything else we need is in the default-enabled BaseOS/AppStream
-# repos (clang/llvm/gcc in AppStream; make/file/binutils in BaseOS).
+# repos (clang/llvm/gcc in AppStream; make/file/binutils/git in BaseOS).
 dnf install -y --setopt=install_weak_deps=False \
-  clang llvm gcc make binutils tar gzip file
+  clang llvm gcc make binutils git tar gzip file
 command -v curl >/dev/null || { echo "build-in-container: curl is missing" >&2; exit 1; }
 
 echo "==> installing Odin ${ODIN_VERSION} (${odin_arch})"
@@ -102,4 +102,22 @@ if readelf -d "makac-linux-${target}" | grep -qi 'NEEDED.*liblua'; then
   exit 1
 fi
 file "makac-linux-${target}"
+
+# Smoke-test the actual artifact: init a throwaway project and run a step
+# through the real VM/prelude (which also proves the static Lua loads).
+echo "==> smoke-testing the artifact"
+bash /work/scripts/smoke-test.sh "/work/makac-linux-${target}"
+
+# Same unit battery as .github/workflows/test.yml, but under Alma 9 / glibc
+# 2.34 and our source-built Lua, so an environment-specific regression can't
+# reach a release. The QMP integration suite and the network-gated download
+# test stay in test.yml. `git` is needed for the fetchgit tests.
+echo "==> running unit tests (all packages)"
+git config --global --add safe.directory /work
+cd /work
+for pkg in $(git ls-files '*_test.odin' | xargs -n1 dirname | sort -u); do
+  echo "---- odin test ./$pkg"
+  "${odin_root}/odin" test "./$pkg"
+done
+
 echo "==> ok: makac-linux-${target} reports $(./"makac-linux-${target}" --version)"
