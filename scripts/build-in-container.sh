@@ -51,8 +51,13 @@ build_root=/opt/makac-build
 mkdir -p "$build_root"
 
 echo "==> installing build dependencies"
+# The AlmaLinux 9 base image ships `curl-minimal`, which already provides the
+# `curl` CLI but conflicts with the full `curl` package; don't request `curl`
+# here. Everything else we need is in the default-enabled BaseOS/AppStream
+# repos (clang/llvm/gcc in AppStream; make/file/binutils in BaseOS).
 dnf install -y --setopt=install_weak_deps=False \
-  clang llvm gcc make binutils curl tar gzip file
+  clang llvm gcc make binutils tar gzip file
+command -v curl >/dev/null || { echo "build-in-container: curl is missing" >&2; exit 1; }
 
 echo "==> installing Odin ${ODIN_VERSION} (${odin_arch})"
 if [ ! -x "${odin_root}/odin" ]; then
