@@ -15,4 +15,4 @@ package vm
 // on added APIs; while major is 0, minor bumps may include incompatible
 // changes — the discipline starts at 1.0.
 VERSION_MAJOR :: #config(MAKAC_VERSION_MAJOR, 0)
-VERSION_MINOR :: #config(MAKAC_VERSION_MINOR, 3)
+VERSION_MINOR :: #config(MAKAC_VERSION_MINOR, 4)
