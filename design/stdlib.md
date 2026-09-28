@@ -4,9 +4,8 @@ Lua's standard library is deliberately minimal (it targets ANSI C), and a
 workflow/orchestration DSL runs into its edges quickly. This document defines
 makac's extended stdlib: small Odin-backed primitives exposed under `makac`,
 in the spirit of the better parts of the Ruby stdlib (`ENV`, `Dir.mktmpdir`,
-`File.*`, `SecureRandom`, `Process.clock_gettime(CLOCK_MONOTONIC)`) and the
-`htt.*` Lua API of sibling tooling, with implementations drawn from Odin's
-core libraries.
+`File.*`, `SecureRandom`, `Process.clock_gettime(CLOCK_MONOTONIC)`), with
+implementations drawn from Odin's core libraries.
 
 Taste rules for what gets in:
 
@@ -67,8 +66,7 @@ Two layers, on purpose:
 * **Flat `makac.*`** stays the *orchestrator* vocabulary: `exec`, `spawn`,
   `download`, `pid_alive`, `_ssh_open`, `qmp_open` — things only makac does.
 * **Submodules** hold the *language gap-fillers* — what Lua-the-language
-  should have had (the htt precedent: `htt.fs`, `htt.time`, `htt.json`,
-  `htt.env`): `makac.fs`, `makac.time`, `makac.json`, `makac.env`.
+  should have had: `makac.fs`, `makac.time`, `makac.json`, `makac.env`.
 
 ## Conventions
 
@@ -82,7 +80,7 @@ Same as the existing `makac.*` primitives (`exec`, `download`, `listdir`,
 * **Time is nanoseconds**, always: one integer unit, `ns_per_*` constants
   for readability, no `_ms`-suffixed variants (Lua 5.4 integers are 64-bit;
   nanoseconds since boot fit for centuries).
-* **Paths** are a real type (the htt precedent), not bare strings. A `path`
+* **Paths** are a real type, not bare strings. A `path`
   is a userdata produced by `fs.path`; every path-taking `fs` function
   accepts a string *or* a path (paths coerce through `__tostring`), and
   path-returning functions return paths. Relative arguments resolve against
@@ -111,7 +109,7 @@ makac.env.makac_path() -> path             -- absolute path of the running binar
 no `set` counterpart: per-command environments belong to `exec`'s `env`
 option; mutating process-wide state mid-workflow is a footgun nothing needs.
 
-`version` is the htt scheme, verbatim: **major** increments when *existing*
+`version` follows the conventional versioning scheme: **major** increments when *existing*
 APIs change incompatibly, **minor** increments when APIs are added. The point
 is capability pinning — a workflow depending on newer features fails early
 and clearly:
@@ -128,9 +126,8 @@ at 1.0.
 
 `makac_path` is the absolute, canonicalized path of the running makac binary
 (`/proc/self/exe` on Linux and kin; Odin `core:os.get_executable_path`) as a
-`path` value. For re-invoking makac in an isolated process — htt uses its
-equivalent to run a second script under a fresh interpreter; likewise, a
-workflow can spawn `makac run other_workflow.lua` without trusting `$PATH`.
+`path` value. For re-invoking makac in an isolated process: a workflow can
+spawn `makac run other_workflow.lua` without trusting `$PATH`.
 
 ## `makac.time` *(status: done)*
 
@@ -178,8 +175,8 @@ Implementations are one call each into `core:path/filepath`
 
 ## `makac.fs` — directory handles (`Dir`) *(status: done)*
 
-(The htt precedent: an *anchored* directory handle — open a root once, then
-work by relative subpath. This is the shape makac's state model wants:
+(An *anchored* directory handle — an open root that subsequent operations
+resolve relative subpaths against — is the shape makac's state model wants:
 `.makac/qemu/<name>/`, `.makac/qemu/img/<name>/` are exactly "a root you do
 repeated relative work under".)
 
@@ -191,8 +188,8 @@ makac.fs.open_dir(path|path_str) -> Dir   -- raises unless it exists and is a di
 A `Dir` holds the canonical absolute path of the root (resolved at
 construction), nothing else — no fd, nothing to close; every operation takes
 an optional `sub` path RELATIVE to the root, validated (must be relative;
-no `..`), and errors raise per makac convention (htt returns `(res, err)`
-pairs; makac raises, reserving plain returns for absence answers):
+no `..`), and errors raise per makac convention (makac raises, reserving
+plain returns for absence answers):
 
 ```lua
 d:path() -> path                -- the canonical absolute root
@@ -214,9 +211,9 @@ d:remove(sub?)                  -- remove sub (recursive for directories);
 * `list` returns an array of entries like `listdir` (name + `type`, the same
   vocabulary as `fs.stat`); `walk` is a depth-first iterator yielding
   `(sub, type)` pairs — directories are yielded too, before their contents.
-* Simplification, documented: htt's `Dir` is fd-anchored (capability-style,
-  race-proof against symlink swaps); makac's is *path*-anchored with a
-  subpath guard — the threat model is a local workflow tool, not an
+* Simplification, documented: makac's `Dir` is *path*-anchored with a
+  subpath guard rather than fd-anchored (capability-style, race-proof against
+  symlink swaps) — the threat model is a local workflow tool, not an
   adversarial filesystem. Rethink only if a caller ever faces one.
 
 *Callers*: `handle.md`'s probe (`d:exists("pid")`), `vm.md`'s
@@ -293,7 +290,7 @@ makac.json.dumps(value)  -> string       -- raises on unencodable values
 makac.json.loads(string) -> value        -- raises on malformed JSON
 ```
 
-(`dumps`/`loads` by Python/htt convention.) The same converters the
+(`dumps`/`loads` by Python's `json` convention.) The same converters the
 `qmp_open` client binding already runs on — hoisted to shared helpers, not
 added twice — so the rules are identical to `qmp:send`'s arguments: tables
 are objects unless every key is an integer in 1..n (then arrays); an empty
