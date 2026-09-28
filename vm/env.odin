@@ -14,7 +14,7 @@ import lua "vendor:lua/5.4"
 // makac-identity submodule:
 //
 //   makac.env.all() -> { NAME = value, ... }   -- whole process environment
-//   makac.env.version() -> major, minor        -- build-time constants below
+//   makac.env.version() -> major, minor        -- build-time constants (version.odin)
 //   makac.env.makac_path() -> path             -- /proc/self/exe, as a path
 //
 // `all` enumerates core:os.environ ("key=value" strings) into a Lua table.
@@ -22,14 +22,9 @@ import lua "vendor:lua/5.4"
 // belong to exec's `env` option; mutating process-wide state mid-workflow
 // is a footgun nothing needs.
 //
-// The VERSION_* constants are the single source of truth for makac's
-// version: `makac.env.version()` reports them and the root command's
-// `--version` flag (main.odin) prints the same pair. Scheme (htt,
-// verbatim): MAJOR increments on incompatible changes to EXISTING APIs,
-// MINOR on added APIs; while major is 0, minor bumps may include
-// incompatible changes — the discipline starts at 1.0.
-VERSION_MAJOR :: 0
-VERSION_MINOR :: 3
+// The VERSION_* constants live in version.odin; `makac.env.version()` reports
+// them and the root command's `--version` flag (main.odin) prints the same
+// pair.
 
 register_env_primitives :: proc(v: ^VM) {
 	L := v.state

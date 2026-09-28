@@ -26,7 +26,7 @@ Taste rules for what gets in:
 | `makac.fs` — paths (`path` type) | **done** | third userdata metatable `makac.path`; coercion pass: every fs function takes string-or-path via `check_path_string`; mktemp_*/null_file return paths |
 | `makac.fs` — directory handles (`Dir`) | **done** | the `walk` iterator is an eager depth-first snapshot, so mid-loop tree mutation is safe; sub guard rejects absolute/`..` |
 | `makac.fs` — directories, files, temp, hashing | done | thin `core:os` wrappers; `write_file{atomic}` is temp+rename; `sha256` streams via `core:crypto/hash` (`hash_file_by_name`, `load_at_once = false`) like the downloader's `hash_file`; flat `makac.listdir` EXISTS, moved to `makac.fs.listdir` with the flat name kept as alias |
-| `makac.env` (`all`, `version`, `makac_path`) | **done** | `core:os.environ` split at first `=`; `version` reads build-time constants `vm.VERSION_MAJOR/MINOR` (0.3), same pair as `makac --version`; `makac_path` is `os.get_executable_path` (`/proc/self/exe`) as a path |
+| `makac.env` (`all`, `version`, `makac_path`) | **done** | `core:os.environ` split at first `=`; `version` reads the compile-time constants in `vm/version.odin`, same pair as `makac --version`; `makac_path` is `os.get_executable_path` (`/proc/self/exe`) as a path |
 | `makac.time` (`sleep`, `now`, `ns_per_*`) | **done** | `clock_gettime`/`nanosleep` plumbing |
 | `makac.json` (`dumps`, `loads`) | **done** | converters already written: hoist `_lua_to_json`/`_push_json` out of `vm/qmp.odin`, register two functions |
 | `makac.spawn` (+`:status`) | **done** | detached fork via `core:sys/posix`; stdio to files only (append), stdin `/dev/null`; env merges over ours; `status()` reaps via waitpid WNOHANG and caches; no `:kill`, never kills on GC; new userdata metatable `makac.proc`; see `launch.md` |
@@ -119,10 +119,11 @@ local major, minor = makac.env.version()
 if minor < 3 then error("workflow needs makac >= 0.3 (the qemu package)") end
 ```
 
-The version is a build-time constant in the Odin source (single source of
-truth; a `makac --version` CLI flag prints the same pair). While major is
-0, minor bumps may include incompatible changes — the discipline starts
-at 1.0.
+The version is compiled in: static fallbacks live in `vm/version.odin` (the
+release workflow rewrites them) and `-define:MAKAC_VERSION_MAJOR` /
+`-define:MAKAC_VERSION_MINOR` override them at build time. A `makac --version`
+CLI flag prints the same pair. While major is 0, minor bumps may include
+incompatible changes — the discipline starts at 1.0.
 
 `makac_path` is the absolute, canonicalized path of the running makac binary
 (`/proc/self/exe` on Linux and kin; Odin `core:os.get_executable_path`) as a

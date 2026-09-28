@@ -2,13 +2,38 @@
 # SPDX-License-Identifier: CC0-1.0
 name: Release
 
+# Released by hand from the Actions tab: supply MAJOR and MINOR, and the
+# workflow builds both architectures inside an AlmaLinux 9 container, rewrites
+# the version fallbacks in vm/version.odin, commits "release: MAJOR.MINOR",
+# tags vMAJOR.MINOR, and publishes a GitHub Release with the binaries.
+#
+# The build runs before anything is committed or tagged, so a failed build
+# leaves git untouched.
 on:
-  push:
-    tags: ['v*']
   workflow_dispatch:
+    inputs:
+      major:
+        description: "MAJOR version (integer)"
+        required: true
+        type: number
+      minor:
+        description: "MINOR version (integer)"
+        required: true
+        type: number
+      dry_run:
+        description: "Build only: skip the version bump, tag, and release"
+        required: false
+        type: boolean
+        default: false
 
+# GITHUB_TOKEN needs to push the version-bump commit and create the release.
+# Note that a push made with GITHUB_TOKEN does not trigger other workflows.
 permissions:
   contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -19,69 +44,106 @@ jobs:
         include:
           - target: amd64
             runner: ubuntu-22.04
-            # sha256 of odin-linux-amd64-dev-2026-06.tar.gz; also the cache
-            # key, so bumping the pin automatically invalidates the cache.
-            sha256: 40f38b462f30914c7f07271c56c8b4b7a7a6e5d82789c8165f75ab569c3b96cc
           - target: arm64
             runner: ubuntu-24.04-arm
-            sha256: 01fc4938cb79d82064bf0b20c4745732e74cc508fdcb6669fa1fa29be8a7d8d4
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install clang and Lua
+      - name: Validate version inputs
+        env:
+          MAJOR: ${{ inputs.major }}
+          MINOR: ${{ inputs.minor }}
         run: |
-          sudo apt-get update
-          # liblua5.4-dev: vendor:lua/5.4 bundles its Lua library for Linux
-          # amd64 only; on arm64 it links the system lua5.4 instead, so the
-          # dev package is required there (harmless on amd64).
-          sudo apt-get install -y clang liblua5.4-dev
+          for v in "$MAJOR" "$MINOR"; do
+            if ! [[ "$v" =~ ^(0|[1-9][0-9]*)$ ]]; then
+              echo "::error::version component '$v' is not a non-negative integer"
+              exit 1
+            fi
+          done
 
-      # The extracted toolchain (~700 MB) is cached under ~/.odin-toolchain,
-      # keyed by the pinned tarball checksum. On a cache miss the step below
-      # downloads, verifies and extracts it; actions/cache saves it afterwards.
-      # Caches are shared between workflows in this repository.
-      - name: Cache Odin toolchain
-        uses: actions/cache@v4
-        with:
-          path: ~/.odin-toolchain
-          key: odin-dev-2026-06-linux-${{ matrix.target }}-${{ matrix.sha256 }}
-
-      - name: Install Odin dev-2026-06
+      # Host checkout (the runner ships git), then the whole build runs inside
+      # AlmaLinux 9 (glibc 2.34, free, supported to ~2032). The official Odin
+      # compiler is a static binary, so the container's libc only affects the
+      # produced binary. Pinned by digest for reproducibility.
+      - name: Build in AlmaLinux 9
+        env:
+          MAJOR: ${{ inputs.major }}
+          MINOR: ${{ inputs.minor }}
         run: |
-          set -euo pipefail
-          if [ ! -x "$HOME/.odin-toolchain/odin" ]; then
-            curl -fsSL -o odin.tar.gz "https://github.com/odin-lang/Odin/releases/download/dev-2026-06/odin-linux-${{ matrix.target }}-dev-2026-06.tar.gz"
-            echo "${{ matrix.sha256 }}  odin.tar.gz" | sha256sum -c -
-            mkdir -p "$HOME/.odin-toolchain"
-            # The tarball's top-level directory is a nightly-stamped name
-            # (e.g. odin-linux-amd64-nightly+2026-06-08), so strip it and keep
-            # the toolchain at a stable path.
-            tar -xzf odin.tar.gz -C "$HOME/.odin-toolchain" --strip-components=1
-          fi
-          "$HOME/.odin-toolchain/odin" version
-          echo "$HOME/.odin-toolchain" >> "$GITHUB_PATH"
+          docker run --rm \
+            -v "$PWD:/work" -w /work \
+            -e MAJOR -e MINOR \
+            almalinux:9@sha256:3a3fa7f043b142bc8008c8b308d39b47d2c84008addcd52f9f9a7a82d2a90474 \
+            bash /work/scripts/build-in-container.sh "${{ matrix.target }}"
 
-      - name: Build makac
-        run: odin build . -out:makac
+      - name: Checksum
+        run: sha256sum "makac-linux-${{ matrix.target }}" > "makac-linux-${{ matrix.target }}.sha256"
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: makac-linux-${{ matrix.target }}
-          path: makac
+          path: |
+            makac-linux-${{ matrix.target }}
+            makac-linux-${{ matrix.target }}.sha256
+          if-no-files-found: error
 
   release:
-    if: startsWith(github.ref, 'refs/tags/')
+    name: bump, tag, release
+    # A dry run builds both binaries above but stops before touching git or
+    # publishing anything.
+    if: ${{ !inputs.dry_run }}
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - name: Bump version, commit, tag
+        env:
+          MAJOR: ${{ inputs.major }}
+          MINOR: ${{ inputs.minor }}
+        run: |
+          set -euo pipefail
+          version="${MAJOR}.${MINOR}"
+          tag="v${version}"
+
+          for v in "$MAJOR" "$MINOR"; do
+            if ! [[ "$v" =~ ^(0|[1-9][0-9]*)$ ]]; then
+              echo "::error::version component '$v' is not a non-negative integer"
+              exit 1
+            fi
+          done
+
+          if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
+            echo "::error::tag ${tag} already exists"
+            exit 1
+          fi
+
+          ./scripts/bump-version.sh "$MAJOR" "$MINOR"
+          if git diff --quiet; then
+            echo "::error::vm/version.odin is already at ${version}; nothing to release"
+            exit 1
+          fi
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "release: ${version}"
+          git tag -a "${tag}" -m "release: ${version}"
+          # Atomic: the branch commit and its tag land together (or not at all).
+          git push --atomic origin "HEAD:${GITHUB_REF_NAME}" "refs/tags/${tag}"
+
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
+          merge-multiple: true
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/**/makac
+          tag_name: v${{ inputs.major }}.${{ inputs.minor }}
+          files: artifacts/**
           generate_release_notes: true
