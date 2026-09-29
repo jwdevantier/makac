@@ -5,7 +5,7 @@
 
 makac ships two built-in actions. They are identified by a `uses` name without
 any `:` — anything with a colon is a package action (`<pkg>:<action>`, see
-[Packages & the data directory](../concepts/packages.md)).
+[Packages](../concepts/packages.md)).
 
 Both actions return the normalized result shape described in the
 [Concepts](../concepts/actions.md) chapter; this page documents the

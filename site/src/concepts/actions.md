@@ -51,7 +51,7 @@ An action is referenced by name in a step's `uses`. Names without a `:` are the
 built-in actions. External actions come from packages and are referenced as
 `<package alias>:<action name>` — the part before the `:` is the package alias,
 the part after is the action name. A package alias can therefore never contain
-`:` itself (see [Packages & the data directory](packages.md)).
+`:` itself (see [Packages](packages.md)).
 
 ## Built-in actions
 
@@ -72,7 +72,7 @@ chapter; their concepts are covered on this chapter's pages.
 - **Packages** — a bundle of Lua code and actions fetched from elsewhere,
   exposing actions under its id (e.g. `qemu:vm`, `qemu:img`). Packages can also
   provide custom fetchers, used to fetch *other* packages. See
-  [Packages & the data directory](packages.md).
+  [Packages](packages.md).
 
 Because actions are Lua, a package's actions are ordinary Lua functions wrapped
 by `makac.define_action` — anything a package can do, a workflow could in

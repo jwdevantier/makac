@@ -33,15 +33,15 @@ makac: initialized data directory at myproject
 Creating an already-existing data directory is not an error. `init` also creates
 an empty `makac_project.lua` beside the data directory (unless one already
 exists), so the project is ready to declare packages — see
-[Packages & the data directory](../concepts/packages.md). `init` is how you set
-up a project when makac cannot find a project root on its own (see
-[The data directory](../concepts/packages.md)).
+[Packages](../concepts/packages.md). `init` is how you set up a project when
+makac cannot find a project root on its own (see
+[Project directory](../concepts/project-directory.md)).
 
 ## `makac run <workflow>`
 
 Evaluates a workflow file (any Lua file) top to bottom, in a fresh VM that has
 the full Lua 5.4 standard library plus the `makac.*` primitives and DSL (see
-[Lua standard library](lua-stdlib.md)):
+[Lua API](../lua-api/index.md)):
 
 ```bash
 makac run my_workflow.lua
@@ -130,7 +130,7 @@ $ makac --version
 The flag lives on the root command, so `makac --version` works from anywhere —
 no data directory is resolved, no VM is created. The same `major.minor` pair is
 available to workflows as `makac.env.version()` (see
-[Lua standard library](lua-stdlib.md)).
+[Makac API](../lua-api/makac-api.md)).
 
 ## Exit behavior
 
@@ -155,4 +155,4 @@ Error messages go to stderr; informational output from fetch goes to stdout.
 by walking up: the first `.makac` found wins; otherwise the first `.git` found
 gets a `.makac` created beside it; if neither exists anywhere up to the
 filesystem root, makac errors and suggests `makac init <path>`. See
-[Packages & the data directory](../concepts/packages.md) for the full rules.
+[Project directory](../concepts/project-directory.md) for the full rules.

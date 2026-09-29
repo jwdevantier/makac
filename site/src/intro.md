@@ -52,7 +52,7 @@ programming language:
 - **Declarative where it counts.** Workflows stay structured as a sequence of steps, like
   an Ansible playbook, rather than turning into imperative scripts.
 - **Pluggable.** Like GitHub Actions, external actions can be pulled in through makac's
-  package system (see [Packages & the data directory](concepts/packages.md)).
+  package system (see [Packages](concepts/packages.md)).
 
 ## Dependencies
 
@@ -69,6 +69,8 @@ makac core. It is documented on its own page: [The makac QEMU package](qemu-pack
 
 - [Getting Started](getting-started.md) — build makac and run your first workflow.
 - [Concepts](concepts/index.md) — workflows, steps, actions, targets, facts, and packages.
-- [Reference](reference/index.md) — the CLI, the step specification, built-in actions and
-  the Lua standard library.
+- [Reference](reference/index.md) — the CLI, the step specification, built-in actions,
+  and fetchers.
+- [Lua API](lua-api/index.md) — the `makac.*` primitives and the workflow DSL, plus
+  editor (LuaLS) support.
 - [Examples](examples/index.md) — complete, runnable workflows.

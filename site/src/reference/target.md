@@ -44,7 +44,7 @@ local res = target:run({ "cat", "/etc/resolv.conf" }, {
 - `argv` is an array of strings: the program followed by its arguments. `argv[1]`
   must be a non-empty string; every element must be a string.
 - Returns `{ code = int, stdout = string, stderr = string }`. (Host runs also
-  surface `timed_out`; see `makac.exec` in [Lua standard library](lua-stdlib.md).)
+  surface `timed_out`; see `makac.exec` in the [Makac API](../lua-api/makac-api.md).)
 - A **non-zero exit code is data, not an error** — it is returned in `code`. A
   *failed* `run` (target unreachable, program could not be started) raises.
 - On a remote target, when `shell` or `env` is given, the command is wrapped as

@@ -46,7 +46,7 @@ local result = step {
 
 - **`uses`** (required): the action reference. A name without `:` is a built-in
   action; `<pkg>:<action>` refers to an action from a fetched package (see
-  [Packages & the data directory](packages.md)).
+  [Packages](packages.md)).
 - **`name`** (optional): used in progress reporting. If omitted, the action's
   registered default name is used; as a last resort, the `uses` string itself.
 - **`with`** (optional): the argument table handed to the action verbatim. Its

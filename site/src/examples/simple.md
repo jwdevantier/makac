@@ -20,7 +20,7 @@ makac: initialized data directory at demo
 
 (You can also just start writing workflows — makac finds the data directory by
 walking up from the current directory, creating `.makac` at the first `.git` it
-finds. See [Packages & the data directory](../concepts/packages.md).)
+finds. See [Project directory](../concepts/project-directory.md).)
 
 ## The workflow
 

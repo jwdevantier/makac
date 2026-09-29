@@ -30,7 +30,8 @@ alias becomes the `uses` prefix, e.g. `qemu:vm`.
 | [Actions](actions.md) | What an action is, the result shape every action returns, and the built-in actions. |
 | [Targets](targets.md) | The host/remote abstraction: `run`, `put`, `get`, naming, and lifecycle. |
 | [Facts](facts.md) | Gathering host information with the `facts` action and fact finders. |
-| [Packages & the data directory](packages.md) | External actions via `makac_project.lua`, fetchers, and how makac locates the data directory. |
+| [Project directory](project-directory.md) | The project layout: `makac_project.lua`, `.makac/`, and `makac init`. |
+| [Packages](packages.md) | Using, fetching, and defining external actions via `makac_project.lua`. |
 
 ## A minimal workflow using most of the model
 

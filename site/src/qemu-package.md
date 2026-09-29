@@ -17,7 +17,7 @@ release lifecycle:
 
 ## What it does (in one breath)
 
-The package ships under the id `qemu`, so its actions are referenced as
+The package is wired under the alias `qemu`, so its actions are referenced as
 `qemu:<action>` in workflows:
 
 - `qemu:img` — ensure a disk image is built: a raw blank, a
@@ -35,10 +35,3 @@ The package ships under the id `qemu`, so its actions are referenced as
 The [QEMU + NVMe example](examples/qemu-nvme.md) shows the whole loop these
 actions enable: build an image, boot once, snapshot, resume in seconds, hotplug
 an NVMe controller while the guest runs, assert its shape, and tear down.
-
-## Where the code lives
-
-The package is developed in its own repository (`makac.qemu`; it lived in
-`./extras/makac-qemu/` here before the move). Its detailed design notes
-live in `design/` in the package repository — those are implementer notes;
-the user-facing documentation ships in the makac.qemu repository itself.

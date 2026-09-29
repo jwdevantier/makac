@@ -15,7 +15,9 @@ This chapter is the detailed, code-accurate reference for makac. Where the
 | [Built-in actions](actions.md) | The `shell` and `facts` actions: their `with` inputs and result `out` shapes. |
 | [Targets](target.md) | The target abstraction: `run`, `put`, `get`, session reuse, and closing. |
 | [Fetchers](fetchers.md) | The fetcher mechanism for packages: the three built-in fetchers and their arguments. |
-| [Lua standard library](lua-stdlib.md) | The `makac.*` primitives exposed to workflows, beyond plain Lua 5.4. |
+
+The Lua surface — the `makac.*` primitives and the workflow DSL — has its own
+chapter: [Lua API](../lua-api/index.md).
 
 Everything here was verified against makac's source (the Lua prelude and the
 Odin VM bindings), so where a design note and the code disagree, the code wins.
