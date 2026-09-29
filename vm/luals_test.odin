@@ -7,7 +7,7 @@ import "core:strings"
 import "core:testing"
 
 // makac._luals_setup (design/luacats.md) writes the embedded base stub into the
-// data dir and one <data>/pkgs/<id> alias per package DEFINITION (so it works
+// data dir and one <data>/pkgs/<alias> symlink per WIRED package (so it works
 // right after `makac fetch`, without loading packages), and points the
 // project .luarc.json's workspace.library at the data dir as the single root.
 @(test)
@@ -20,7 +20,7 @@ test_luals_setup_installs_stub_and_alias :: proc(t: ^testing.T) {
 	testing.expect(
 		t,
 		os.make_directory_all(
-			strings.concatenate([]string{data, "/packages/demo/lib"}, context.temp_allocator),
+			strings.concatenate([]string{root, "/demopkg/lib"}, context.temp_allocator),
 		) ==
 		nil,
 		"package lib dir",
@@ -28,7 +28,7 @@ test_luals_setup_installs_stub_and_alias :: proc(t: ^testing.T) {
 	testing.expect(
 		t,
 		os.write_entire_file_from_string(
-			strings.concatenate([]string{data, "/packages/demo/lib/util.lua"}, context.temp_allocator),
+			strings.concatenate([]string{root, "/demopkg/lib/util.lua"}, context.temp_allocator),
 			"lib-marker\n",
 		) ==
 		nil,
@@ -37,11 +37,14 @@ test_luals_setup_installs_stub_and_alias :: proc(t: ^testing.T) {
 	testing.expect(
 		t,
 		os.write_entire_file_from_string(
-			strings.concatenate([]string{data, "/packages.lua"}, context.temp_allocator),
-			`return { { id = "demo", fetcher = "fetchgit", with = { url = "unused" } } }`,
+			strings.concatenate([]string{root, "/makac_project.lua"}, context.temp_allocator),
+			`return {
+  inputs = { demo = { fetcher = "filesystem", with = { path = "demopkg" } } },
+  packages = { demo = "demo" },
+}`,
 		) ==
 		nil,
-		"packages.lua",
+		"makac_project.lua",
 	)
 
 	v := new(data)
@@ -56,7 +59,7 @@ assert(stub == makac._luals_stub, "base stub must be installed verbatim")
 
 local link = makac.fs.stat(makac.data_dir .. "/pkgs/demo")
 assert(link ~= nil and link.type == "link", "alias must be a symlink")
-local direct = makac.fs.read_file(makac.data_dir .. "/packages/demo/lib/util.lua")
+local direct = makac.fs.read_file(makac.project_root() .. "/demopkg/lib/util.lua")
 assert(direct == "lib-marker\n", "direct read: " .. tostring(direct))
 local through = makac.fs.read_file(makac.data_dir .. "/pkgs/demo/util.lua")
 assert(through == "lib-marker\n", "alias read: " .. tostring(through))
@@ -81,8 +84,8 @@ assert(makac.fs.read_file(luarc) == "CUSTOM\n", "existing .luarc.json must be pr
 }
 
 // luals_setup points workspace.library at exactly ONE root (the data dir):
-// other keys are preserved, and the aliases are built from the package
-// definitions (fetched and filesystem alike) without loading any package.
+// other keys are preserved, and the aliases are built from the project
+// file's wiring (fetched and filesystem alike) without loading any package.
 @(test)
 test_luals_setup_single_root :: proc(t: ^testing.T) {
 	root, rerr := os.make_directory_temp("", "makac_luals_merge_*", context.allocator)
@@ -104,7 +107,7 @@ test_luals_setup_single_root :: proc(t: ^testing.T) {
 	testing.expect(
 		t,
 		os.make_directory_all(
-			strings.concatenate([]string{data, "/packages/inside/lib"}, context.temp_allocator),
+			strings.concatenate([]string{root, "/insidepkg/lib"}, context.temp_allocator),
 		) ==
 		nil,
 		"inside lib",
@@ -120,23 +123,26 @@ test_luals_setup_single_root :: proc(t: ^testing.T) {
 	pkgs := strings.concatenate(
 		[]string{
 			"return {\n",
-			`  { id = "inside", fetcher = "fetchgit", with = { url = "unused" } },`,
-			"\n",
-			`  { id = "ext", fetcher = "filesystem", with = { path = "`,
+			`  inputs = {
+    inside = { fetcher = "filesystem", with = { path = "insidepkg" } },
+    ext = { fetcher = "filesystem", with = { path = "`,
 			root,
-			`/extpkg" } },`,
-			"\n}\n",
+			`/extpkg" } },
+  },
+  packages = { inside = "inside", ext = "ext" },
+}
+`,
 		},
 		context.temp_allocator,
 	)
 	testing.expect(
 		t,
 		os.write_entire_file_from_string(
-			strings.concatenate([]string{data, "/packages.lua"}, context.temp_allocator),
+			strings.concatenate([]string{root, "/makac_project.lua"}, context.temp_allocator),
 			pkgs,
 		) ==
 		nil,
-		"packages.lua",
+		"makac_project.lua",
 	)
 
 	v := new(data)
@@ -152,7 +158,7 @@ local cfg = makac.json.loads(assert(makac.fs.read_file("`,
 assert(cfg["diagnostics.globals"][1] == "vim", "other keys must be preserved")
 local lib = cfg["workspace.library"]
 assert(#lib == 1 and lib[1] == "./.makac", "workspace.library must be exactly the one data-dir root")
--- the require alias exists for every package, in the data dir
+-- the require alias exists for every wired package, in the data dir
 assert(makac.fs.stat(makac.data_dir .. "/pkgs/inside") ~= nil, "inside alias")
 assert(makac.fs.stat(makac.data_dir .. "/pkgs/ext") ~= nil, "external alias")
 `,

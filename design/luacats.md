@@ -8,9 +8,9 @@ makac's Lua API is two things a language server cannot see on its own:
   binary (`prelude.lua`, Odin `register`); there is no module to `require`,
   so LuaLS reports them as undefined;
 * **package library code** — a package's `lib/` is required as
-  `pkgs/<id>/<rel>` (design/packages.md). LuaLS cannot run the VM's
+  `pkgs/<alias>/<rel>` (design/packages.md). LuaLS cannot run the VM's
   `pkgs_searcher`; it only maps a `require` string to a path, so it looks for
-  `<library root>/pkgs/<id>/<rel>.lua`.
+  `<library root>/pkgs/<alias>/<rel>.lua`.
 
 `.makac` is normally gitignored and LuaLS honours `.gitignore`, so nothing
 under it is seen unless it is named in `workspace.library`.
@@ -24,14 +24,14 @@ install is shaped to match, and nothing is aliased across roots:
 ```
 <project>/.luarc.json             workspace.library = ["./<data>"]      ONE root
 <project>/<data>/makac.lua        base stub: makac, step, Target, fs, ...
-<project>/<data>/pkgs/<id>  ->    <package root>/lib                    (require alias)
+<project>/<data>/pkgs/<alias>  ->    <package root>/lib                    (require alias)
 ```
 
-The data directory **is** the one library root. Its `pkgs/<id>` alias sits
+The data directory **is** the one library root. Its `pkgs/<alias>` alias sits
 next to the code it points at, so LuaLS resolves the symlink to a single file
 and indexes it **once**. (Listing a second root that reaches the same file is
 what produced duplicate definitions.) The VM's loader maps
-`pkgs/<id>/<rel>` to the same place.
+`pkgs/<alias>/<rel>` to the same place.
 
 A `filesystem`-fetcher package's code lives *outside* `<data>`, so its alias
 points out of the root. That is fine: the alias is still the single path
@@ -72,6 +72,9 @@ none to run yet.
 
 * No stubs for third-party libraries: annotate their source in place (the
   same alias then picks them up).
+* No map for `./` package-relative imports: the VM resolves `require("./x")`
+  at run time against the owning package's root, but this static tree only
+  mirrors `pkgs/<alias>/...`, so LuaLS does not follow them.
 * No per-package config or stub: a package is never written to.
 * Not a `require`-able module: `makac` stays an injected global; the stub
   only teaches the editor about it.

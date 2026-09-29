@@ -92,7 +92,7 @@ jobs:
           do
             echo "::group::makac-linux-${{ matrix.target }} on ${base%%@*}"
             docker run --rm -v "$PWD:/work:ro" -w /work "$base" \
-              bash /work/scripts/smoke-test.sh "/work/makac-linux-${{ matrix.target }}"
+              bash /work/e2e_test/run_all.sh "/work/makac-linux-${{ matrix.target }}"
             echo "::endgroup::"
           done
 

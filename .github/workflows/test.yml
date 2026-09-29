@@ -73,6 +73,13 @@ jobs:
       - name: Build makac
         run: odin build . -out:makac
 
+      # End-to-end suite against the just-built binary (see e2e_test/):
+      # artifact smoke test + package-provided fetcher chaining. Hermetic,
+      # and the same entry point runs against released artifacts in
+      # release.yml and build-in-container.sh.
+      - name: End-to-end tests
+        run: bash e2e_test/run_all.sh ./makac
+
       # Unit tests for every package that carries *_test.odin files.
       # The package list is discovered from tracked test files, so a new
       # package with tests is picked up automatically. Each package runs

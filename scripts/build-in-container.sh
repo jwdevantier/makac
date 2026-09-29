@@ -103,10 +103,11 @@ if readelf -d "makac-linux-${target}" | grep -qi 'NEEDED.*liblua'; then
 fi
 file "makac-linux-${target}"
 
-# Smoke-test the actual artifact: init a throwaway project and run a step
-# through the real VM/prelude (which also proves the static Lua loads).
-echo "==> smoke-testing the artifact"
-bash /work/scripts/smoke-test.sh "/work/makac-linux-${target}"
+# End-to-end suite against the actual artifact (e2e_test/): a throwaway
+# project through the real VM/prelude (which also proves the static Lua
+# loads) plus the package-provided-fetcher chaining check.
+echo "==> running e2e tests against the artifact"
+bash /work/e2e_test/run_all.sh "/work/makac-linux-${target}"
 
 # Same unit battery as .github/workflows/test.yml, but under Alma 9 / glibc
 # 2.34 and our source-built Lua, so an environment-specific regression can't

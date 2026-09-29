@@ -21,19 +21,21 @@ keys, image URLs) are placeholders.
 
 ## Setting up the QEMU package
 
-Declare the package in `.makac/packages.lua` and fetch it:
+Declare the package in `makac_project.lua` and fetch it:
 
 ```lua
--- .makac/packages.lua
+-- makac_project.lua
 return {
-    {
-        id = "qemu",
-        fetcher = "fetchgit",
-        with = {
-            url = "https://github.com/jwdevantier/makac.qemu",
-            rev = "main",
+    inputs = {
+        qemu = {
+            fetcher = "fetchgit",
+            with = {
+                url = "https://github.com/jwdevantier/makac.qemu",
+                rev = "main",
+            },
         },
     },
+    packages = { qemu = "qemu" },
 }
 ```
 

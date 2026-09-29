@@ -8,7 +8,7 @@
 -- and tear down.
 --
 -- MANUAL ACCEPTANCE: run this against real QEMU/KVM from a directory wired
--- to the qemu package (packages.lua alias `qemu`). It downloads a Fedora
+-- to the qemu package (makac_project.lua wires the `qemu` alias). It downloads a Fedora
 -- cloud image and needs /dev/kvm, qemu-img and genisoimage on PATH.
 --
 --   cd <your project> && makac run <path-to>/nvme_test.lua

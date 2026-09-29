@@ -954,8 +954,8 @@ test_download_requires_data_dir :: proc(t: ^T) {
 
 // fetchurl fetcher end-to-end (offline): the data-dir cache is pre-populated
 // with a hand-built tarball, so makac.download is a cache hit; the fetcher
-// verifies the sha256 checksum and extracts the tarball (as-is) into
-// <data_dir>/packages/<id>/.
+// verifies the sha256 checksum and extracts the tarball into
+// <data_dir>/packages/<name>/ (<name> = the input key / canonical name).
 @(test)
 test_fetchurl_fetcher :: proc(t: ^T) {
 	dir, derr := os.make_directory_temp("", "makac_vm_fetchurl_*", context.allocator)
@@ -963,18 +963,24 @@ test_fetchurl_fetcher :: proc(t: ^T) {
 	defer os.remove_all(dir)
 	defer delete(dir, context.allocator)
 
-	v := new(dir)
+	// project root = dir; data dir = dir/.makac; project file = dir/makac_project.lua
+	data_dir := strings.concatenate([]string{dir, "/.makac"}, context.temp_allocator)
+	testing.expect(t, os.mkdir_all(data_dir, os.perm_number(0o755)) == nil)
+
+	v := new(data_dir)
 	defer close(v)
 
 	// build the tarball fixture (tarball root dir 'pkgroot/'; two copies so
-	// two packages can be cached under two url keys)
+	// two packages can be cached under two url keys). The manifest in each
+	// tarball declares the canonical name of the input that will fetch it
+	// (the post-fetch check compares manifest name == input key).
 	// fmt.tprintf cannot be used for Lua sources containing braces (Odin's
 	// fmt treats {} as verbs); substitute a placeholder instead
 	fixture_chunk, _ := strings.replace_all(
 		`
 		makac.exec({ "mkdir", "-p", "@DIR@/fixtures/pkgroot/lib" })
-		local f = io.open("@DIR@/fixtures/pkgroot/makac.lua", "w")
-		f:write("-- pkg-marker\n"); f:close()
+		local f = io.open("@DIR@/fixtures/pkgroot/makac_package.lua", "w")
+		f:write([[-- pkg-marker]]); f:close()
 		f = io.open("@DIR@/fixtures/pkgroot/lib/hello.lua", "w")
 		f:write("-- hello-marker\n"); f:close()
 		local r = makac.exec({ "tar", "-czf", "@DIR@/pkg.tar.gz", "-C", "@DIR@/fixtures", "pkgroot" })
@@ -998,7 +1004,7 @@ test_fetchurl_fetcher :: proc(t: ^T) {
 	tar2 := strings.concatenate([]string{dir, "/pkg2.tar.gz"}, context.temp_allocator)
 	digest, herr := dl.hash_file(tar1, context.temp_allocator)
 	testing.expectf(t, herr == nil, "hash fixture tarball: {}", herr)
-	cache_dir := strings.concatenate([]string{dir, "/cache"}, context.temp_allocator)
+	cache_dir := strings.concatenate([]string{data_dir, "/cache"}, context.temp_allocator)
 	testing.expect(t, os.mkdir_all(cache_dir, os.perm_number(0o755)) == nil)
 	key1_path := strings.concatenate(
 		[]string{cache_dir, "/", dl.url_cache_key(url1, context.temp_allocator)},
@@ -1019,13 +1025,30 @@ test_fetchurl_fetcher :: proc(t: ^T) {
 	testing.expect(t, os.rename(tar2, key2_path) == nil)
 	testing.expect(t, os.rename(tar3, key3_path) == nil)
 
-	// packages.lua — a bare table constructor — with ids, fetchers, checksum
+	// makac_project.lua — a bare table constructor — with input keys,
+	// fetchers, checksum. The 'tar' unpacker keeps the pkgroot/ wrapper, so
+	// the manifest lands at <name>/pkgroot/makac_package.lua: the post-fetch
+	// name check would not find it there, so all three use custom unpackers
+	// with --strip-components=1.
 	pkgs_tmpl := `{
-  { id = "testpkg", fetcher = "fetchurl",
-      with = { url = "@URL1@", sha256 = "@DIGEST@", unpacker = "tar" } },
-  { id = "github.com/user/nestedpkg", fetcher = "fetchurl",
-      with = { url = "@URL2@", sha256 = "@DIGEST@", unpacker = "tar" } },
-  { id = "custompkg", fetcher = "fetchurl",
+  inputs = {
+    ["test.pkg"] = { fetcher = "fetchurl",
+      with = { url = "@URL1@", sha256 = "@DIGEST@",
+        unpacker = function(args, dst_dir)
+          local r = makac.exec({ "tar", "-xf", args.archive, "-C", dst_dir,
+                                 "--strip-components=1" })
+          assert(r.code == 0, r.stderr)
+        end } },
+    nested = { fetcher = "fetchurl",
+      with = { url = "@URL2@", sha256 = "@DIGEST@",
+        unpacker = function(args, dst_dir)
+          local r = makac.exec({ "tar", "-xf", args.archive, "-C", dst_dir,
+                                 "--strip-components=1" })
+          assert(r.code == 0, r.stderr)
+          local f = io.open(dst_dir .. "/makac_package.lua", "w")
+          f:write([[-- pkg-marker]]); f:close()
+        end } },
+    ["custom.pkg"] = { fetcher = "fetchurl",
       with = { url = "@URL3@", sha256 = "@DIGEST@",
         -- custom uncompressor: receives the with-args PLUS the downloaded
         -- file path in args.archive
@@ -1036,13 +1059,17 @@ test_fetchurl_fetcher :: proc(t: ^T) {
           local r = makac.exec({ "tar", "-xf", args.archive, "-C", dst_dir,
                                  "--strip-components=1" })
           assert(r.code == 0, r.stderr)
+          f = io.open(dst_dir .. "/makac_package.lua", "w")
+          f:write([[-- pkg-marker]]); f:close()
         end } },
+  },
+  packages = { tp = "test.pkg", nested = "nested", c = "custom.pkg" },
 }`
 	r1, _ := strings.replace_all(pkgs_tmpl, "@URL1@", url1, context.temp_allocator)
 	r2, _ := strings.replace_all(r1, "@URL2@", url2, context.temp_allocator)
 	r3, _ := strings.replace_all(r2, "@URL3@", url3, context.temp_allocator)
 	pkgs, _ := strings.replace_all(r3, "@DIGEST@", string(digest), context.temp_allocator)
-	pkgs_path := strings.concatenate([]string{dir, "/packages.lua"}, context.temp_allocator)
+	pkgs_path := strings.concatenate([]string{dir, "/makac_project.lua"}, context.temp_allocator)
 	testing.expect(t, os.write_entire_file(pkgs_path, transmute([]u8)pkgs) == nil)
 
 	err2, ok2 := run_string(
@@ -1050,18 +1077,21 @@ test_fetchurl_fetcher :: proc(t: ^T) {
 		`
 		assert(makac.data_dir ~= nil and makac.data_dir ~= "", "makac.data_dir must be set")
 		assert(makac.fetch_all() == 3)
+		local inputs = makac.read_project_file()
 		local function readfile(p)
 			local f = io.open(p, "r"); if not f then return nil end
 			local c = f:read("a"); f:close(); return c
 		end
-		-- "tar" unpacker extracts the tarball as-is (no stripping)
-		local mk = readfile(makac.data_dir .. "/packages/testpkg/pkgroot/makac.lua")
+		-- storage is content-addressed: resolve by recomputing the fetcher's
+		-- key from the input entry (no lockfile, no recorded state)
+		local function pkgdir(label) return makac.resolve_pkg_dir(inputs[label]) end
+		assert(pkgdir("test.pkg"):match("/packages/fetchurl%-%x+$"), pkgdir("test.pkg"))
+		local mk = readfile(pkgdir("test.pkg") .. "/makac_package.lua")
 		assert(mk and mk:find("pkg-marker", 1, true),
-			"tarball extracted as-is: makac.lua at tarball root")
-		local lib = readfile(makac.data_dir .. "/packages/github.com/user/nestedpkg/pkgroot/lib/hello.lua")
-		assert(lib and lib:find("hello-marker", 1, true), "nested package id directory")
-		-- custom unpacker: ran (its --strip-components=1 drops pkgroot/)
-		local cmk = readfile(makac.data_dir .. "/packages/custompkg/makac.lua")
+			"manifest extracted at package root")
+		local lib = readfile(pkgdir("nested") .. "/lib/hello.lua")
+		assert(lib and lib:find("hello-marker", 1, true), "nested package content")
+		local cmk = readfile(pkgdir("custom.pkg") .. "/makac_package.lua")
 		assert(cmk and cmk:find("pkg-marker", 1, true), "custom unpacker output")
 	`,
 	)
@@ -1069,24 +1099,28 @@ test_fetchurl_fetcher :: proc(t: ^T) {
 	testing.expect(t, ok2, err2.message)
 }
 
-// packages.lua validation (design/packages.md): every format violation is a
-// hard error naming the problem; an empty list is fine.
+// makac_project.lua validation (design/packages.md): every format violation is a
+// hard error naming the problem; an empty file is fine.
 @(test)
-test_fetch_package_list_validation :: proc(t: ^T) {
+test_project_file_validation :: proc(t: ^T) {
 	dir, derr := os.make_directory_temp("", "makac_vm_pkgval_*", context.allocator)
 	testing.expectf(t, derr == nil, "make temp dir: {}", derr)
 	defer os.remove_all(dir)
 	defer delete(dir, context.allocator)
 
-	v := new(dir)
+	// project root = dir; data dir = dir/.makac; project file = dir/makac_project.lua
+	data_dir := strings.concatenate([]string{dir, "/.makac"}, context.temp_allocator)
+	testing.expect(t, os.mkdir_all(data_dir, os.perm_number(0o755)) == nil)
+
+	v := new(data_dir)
 	defer close(v)
 
-	// missing packages.lua
+	// missing makac_project.lua
 	err, ok := run_string(
 		v,
 		`
 		local ok, e = pcall(makac.fetch_all)
-		assert(not ok and tostring(e):find("no package list found"), tostring(e))
+		assert(not ok and tostring(e):find("no project file found"), tostring(e))
 	`,
 	)
 	defer delete(err.message)
@@ -1097,17 +1131,21 @@ test_fetch_package_list_validation :: proc(t: ^T) {
 		pattern: string,
 	} {
 		{`return 42`, "must return a table"},
-		{`{ "x" }`, "entry #1 must be a table"},
-		{`{ { fetcher = "fetchurl" } }`, "entry #1: 'id' must be a non-empty string"},
-		{`{ { id = "a:b", fetcher = "fetchurl" } }`, "must not contain ':'"},
-		{`{ { id = "x" } }`, "'fetcher' must be a non-empty string"},
-		{`{ { id = "x", fetcher = {} } }`, "'fetcher' must be a non-empty string (fetcher name"},
-		{`{ { id = "x", fetcher = "" } }`, "got empty string"},
-		{`{ { id = "x", fetcher = "wget" } }`, "no known fetcher named 'wget'"},
-		{`{ { id = "x", fetcher = "fetchurl", with = 5 } }`, "'with' must be a table"},
-		{`{ { id =`, "failed to parse"},
+		{`return { inputs = 42 }`, "'inputs' must be a table"},
+		{`return { packages = 42 }`, "'packages' must be a table"},
+		{`return { inputs = { ["x/y"] = { fetcher = "fetchurl" } } }`, "input label 'x/y' must be a non-empty string without '/' or ':'"},
+		{`return { inputs = { ["x"] = 42 } }`, "input 'x' must be a table"},
+		{`return { inputs = { ["x"] = {} } }`, "'fetcher' must be a non-empty string"},
+		{`return { inputs = { ["x"] = { fetcher = {} } } }`, "'fetcher' must be a non-empty string (fetcher name"},
+		{`return { inputs = { ["x"] = { fetcher = "" } } }`, "'fetcher' must be a non-empty string"},
+		{`return { inputs = { ["x"] = { fetcher = "wget" } } }`, "failed to make progress"},
+		{`return { inputs = { ["x"] = { fetcher = "fetchurl", with = 5 } } }`, "'with' must be a table"},
+		{`return { inputs = { ["x"] = { fetcher = function() end } } }`, "a bare function cannot be an input fetcher"},
+		{`return { inputs = { ["x"] = { fetcher = "fetchurl" } }, packages = { ["a:b"] = "x" } }`, "must be a non-empty string without ':' or '/'"},
+		{`return { inputs = { ["x"] = { fetcher = "fetchurl" } }, packages = { q = "nope" } }`, "alias 'q' refers to unknown input nope"},
+		{`return { inputs = { ["x"] =`, "failed to parse"},
 	}
-	pkgs_path := strings.concatenate([]string{dir, "/packages.lua"}, context.temp_allocator)
+	pkgs_path := strings.concatenate([]string{dir, "/makac_project.lua"}, context.temp_allocator)
 	for c in cases {
 		testing.expect(t, os.write_entire_file(pkgs_path, transmute([]u8)c.src) == nil)
 		script := fmt.tprintf(
@@ -1121,29 +1159,39 @@ test_fetch_package_list_validation :: proc(t: ^T) {
 		delete(ferr.message)
 	}
 
-	// empty list: nothing to fetch, no error
-	empty_src := "{}"
+	// empty project file: nothing to fetch, no error
+	empty_src := "return { inputs = {}, packages = {} }"
 	testing.expect(t, os.write_entire_file(pkgs_path, transmute([]u8)empty_src) == nil)
 	ferr, fok := run_string(v, `assert(makac.fetch_all() == 0)`)
 	defer delete(ferr.message)
 	testing.expect(t, fok, ferr.message)
 
-	// a fetcher may be given as an inline function; it receives
-	// (with-args, dest, id)
-	fn_src := `{ { id = "inline", fetcher = function(spec, dest)
-		assert(spec.with.greet == "hi")
-		assert(spec.id == "inline")
-		local r = makac.exec({ "mkdir", "-p", dest })
-		assert(r.code == 0)
-	end, with = { greet = "hi" } } }`
+	// an inline fetcher is an object { fetch = fn, key = ... }: it receives
+	// the input entry (with .label set) and the destination, which is keyed
+	// by the fetcher's key. The manifest check runs for inline fetchers too,
+	// so the fake fetcher writes one.
+	fn_src := `return { inputs = { inline = {
+		fetcher = {
+			key = "inline-key-1",
+			fetch = function(spec, dest)
+				assert(spec.with.greet == "hi")
+				assert(spec.label == "inline")
+				local r = makac.exec({ "mkdir", "-p", dest })
+				assert(r.code == 0)
+				local f = io.open(dest .. "/makac_package.lua", "w")
+				f:write([[-- inline fixture manifest]]); f:close()
+			end,
+		},
+		with = { greet = "hi" } } } }`
 	testing.expect(t, os.write_entire_file(pkgs_path, transmute([]u8)fn_src) == nil)
 	ferr2, fok2 := run_string(
 		v,
 		`assert(makac.fetch_all() == 1)
-		local f = io.open(makac.data_dir .. "/packages/inline", "r")
-		assert(f == nil or f:read("a") == nil) -- exists as a dir (or empty)
-		if f then f:close() end
-		makac._print_package_defs(makac.read_package_defs())`,
+		local inputs, aliases = makac.read_project_file()
+		assert(inputs.inline and inputs.inline.label == "inline")
+		assert(makac.resolve_pkg_dir(inputs.inline):find("inline%-key%-1"),
+			"stored under the fetcher's key")
+		assert(#aliases == 0)`,
 	)
 	defer delete(ferr2.message)
 	testing.expect(t, fok2, ferr2.message)
@@ -1158,7 +1206,8 @@ test_fetchurl_arg_validation :: proc(t: ^T) {
 		v,
 		`
 		local fu = makac.registry.fetchers.fetchurl
-		assert(type(fu) == "function", "fetchurl must be a built-in fetcher")
+		assert(type(fu) == "table" and type(fu.fetch) == "function"
+			and type(fu.key) == "function", "fetchurl must be a built-in {fetch,key} fetcher")
 		-- spec contract: full entry; 'with' is required
 		local ok, e = pcall(fu, { id = "x" }, "/tmp/whatever")
 		assert(not ok and tostring(e):find("requires a 'with' table"), tostring(e))
@@ -1185,7 +1234,7 @@ test_fetchurl_arg_validation :: proc(t: ^T) {
 }
 
 // fetchgit fetcher: clones a repository (offline: a local repo path) into
-// <data_dir>/packages/<id>/ (keeping .git so re-fetches update in place) and
+// <data_dir>/packages/<name>/ (keeping .git so re-fetches update in place) and
 // checks out the requested rev.
 @(test)
 test_fetchgit_fetcher :: proc(t: ^T) {
@@ -1194,11 +1243,17 @@ test_fetchgit_fetcher :: proc(t: ^T) {
 	defer os.remove_all(dir)
 	defer delete(dir, context.allocator)
 
-	v := new(dir)
+	// project root = dir; data dir = dir/.makac; project file = dir/makac_project.lua
+	data_dir := strings.concatenate([]string{dir, "/.makac"}, context.temp_allocator)
+	testing.expect(t, os.mkdir_all(data_dir, os.perm_number(0o755)) == nil)
+
+	v := new(data_dir)
 	defer close(v)
 
 	// build a fixture repo: branch main has "main-marker", branch dev has
-	// "dev-marker" in makac.lua
+	// "dev-marker" in makac_package.lua (each manifest declares the canonical
+	// name of the input that will fetch it — main.pkg on main, dev.pkg on
+	// dev; the pinned-commit fetch goes through the fetcher directly)
 	chunk, _ := strings.replace_all(
 		`
 		makac.exec({ "mkdir", "-p", "@DIR@/repo" })
@@ -1214,12 +1269,12 @@ test_fetchgit_fetcher :: proc(t: ^T) {
 		sh("git init -q -b main @DIR@/repo")
 		git("config", "user.email", "makac@test.invalid")
 		git("config", "user.name", "makac test")
-		sh("echo main-marker > @DIR@/repo/makac.lua")
+		sh([[echo '-- main-marker' > @DIR@/repo/makac_package.lua]])
 		sh("mkdir -p @DIR@/repo/lib && echo lib-marker > @DIR@/repo/lib/x.lua")
 		git("add", "-A")
 		git("commit", "-q", "-m", "main commit")
 		git("checkout", "-q", "-b", "dev")
-		sh("echo dev-marker > @DIR@/repo/makac.lua")
+		sh([[echo '-- dev-marker' > @DIR@/repo/makac_package.lua]])
 		git("commit", "-qam", "dev commit")
 		git("checkout", "-q", "main")
 	`,
@@ -1231,13 +1286,16 @@ test_fetchgit_fetcher :: proc(t: ^T) {
 	defer delete(err.message)
 	if !testing.expect(t, ok, err.message) {return}
 
-	// two packages: default branch and the 'dev' ref
-	pkgs_tmpl := `{
-  { id = "mainpkg", fetcher = "fetchgit", with = { url = "@DIR@/repo" } },
-  { id = "devpkg", fetcher = "fetchgit", with = { url = "@DIR@/repo", rev = "dev" } },
+	// two inputs: default branch and the 'dev' ref
+	pkgs_tmpl := `return {
+  inputs = {
+    main = { fetcher = "fetchgit", with = { url = "@DIR@/repo" } },
+    dev = { fetcher = "fetchgit", with = { url = "@DIR@/repo", rev = "dev" } },
+  },
+  packages = { main = "main", dev = "dev" },
 }`
 	pkgs, _ := strings.replace_all(pkgs_tmpl, "@DIR@", dir, context.temp_allocator)
-	pkgs_path := strings.concatenate([]string{dir, "/packages.lua"}, context.temp_allocator)
+	pkgs_path := strings.concatenate([]string{dir, "/makac_project.lua"}, context.temp_allocator)
 	testing.expect(t, os.write_entire_file_from_string(pkgs_path, pkgs) == nil)
 
 	err2, ok2 := run_string(
@@ -1245,35 +1303,43 @@ test_fetchgit_fetcher :: proc(t: ^T) {
 		fmt.tprintf(
 			`
 		assert(makac.fetch_all() == 2)
+		local inputs = makac.read_project_file()
 		local function readfile(p)
 			local f = io.open(p, "r"); if not f then return nil end
 			local c = f:read("a"); f:close(); return c
 		end
+		local function pkgdir(label) return makac.resolve_pkg_dir(inputs[label]) end
 
 		-- pin to an older commit hash (the main commit under dev): content
-		-- must differ from the dev tip
+		-- must differ from the dev tip. The direct fetcher call writes its
+		-- own manifest (fetch_all's checks only apply to fetch_all). The fn
+		-- is registered as an object; __call makes fg(spec, dest) work.
 		local rev1 = makac.exec({{ "git", "-C", "%s/repo", "rev-parse", "dev~1" }})
 			.stdout:gsub("%%s+", "")
 		assert(rev1:match("^%%x+$"), rev1)
 		local fg = makac.registry.fetchers.fetchgit
-		fg({{ id = "pinned", with = {{ url = "%s/repo", rev = rev1 }} }},
-			makac.data_dir .. "/packages/pinned")
-		local pk = readfile(makac.data_dir .. "/packages/pinned/makac.lua")
+		fg({{ label = "pinned.pkg", with = {{ url = "%s/repo", rev = rev1 }} }},
+			makac.data_dir .. "/pinned.pkg")
+		local pk = readfile(makac.data_dir .. "/pinned.pkg/makac_package.lua")
 		assert(pk and pk:find("main%%-marker"), "pinned to older commit: " .. tostring(pk))
 		assert(not pk:find("dev%%-marker"), "must not see dev tip content")
-		local mk = readfile(makac.data_dir .. "/packages/mainpkg/makac.lua")
+		local mk = readfile(pkgdir("main") .. "/makac_package.lua")
 		assert(mk and mk:find("main-marker", 1, true), "default branch content")
-		local lib = readfile(makac.data_dir .. "/packages/mainpkg/lib/x.lua")
+		local lib = readfile(pkgdir("main") .. "/lib/x.lua")
 		assert(lib and lib:find("lib-marker", 1, true), "subdir content copied")
-		assert(readfile(makac.data_dir .. "/packages/mainpkg/.git/HEAD") ~= nil,
+		assert(readfile(pkgdir("main") .. "/.git/HEAD") ~= nil,
 			"fetchgit keeps .git so fetches are re-runnable")
-		local dv = readfile(makac.data_dir .. "/packages/devpkg/makac.lua")
+		local dv = readfile(pkgdir("dev") .. "/makac_package.lua")
 		assert(dv and dv:find("dev-marker", 1, true), "rev=dev content")
 
+		-- the two inputs fetched from the same repo (different revs) MUST land
+		-- in different content-addressed directories
+		assert(pkgdir("main") ~= pkgdir("dev"), "distinct storage keys per rev")
+
 		-- re-running a fetch on an existing work tree updates in place
-		-- (fetch + checkout) instead of re-cloning
+		-- (fetch + checkout) instead of re-cloning (and prunes nothing here)
 		assert(makac.fetch_all() == 2)
-		assert(readfile(makac.data_dir .. "/packages/devpkg/makac.lua"):find("dev%%-marker"),
+		assert(readfile(pkgdir("dev") .. "/makac_package.lua"):find("dev%%-marker"),
 			"re-fetch keeps dev content")
 	`,
 			dir,
@@ -1289,9 +1355,9 @@ test_fetchgit_fetcher :: proc(t: ^T) {
 		fmt.tprintf(
 			`
 		local ok, e = pcall(makac.registry.fetchers.fetchgit,
-			{{ id = "badref", fetcher = "fetchgit",
+			{{ name = "badref.pkg", fetcher = "fetchgit",
 			   with = {{ url = "%s/repo", rev = "no-such-branch" }} }},
-			"%s/packages/badref")
+			"%s/packages/badref.pkg")
 		assert(not ok and tostring(e):find("no-such-branch", 1, true), tostring(e))
 	`,
 			dir,
@@ -1312,7 +1378,8 @@ test_fetchgit_arg_validation :: proc(t: ^T) {
 		v,
 		`
 		local fg = makac.registry.fetchers.fetchgit
-		assert(type(fg) == "function", "fetchgit must be a built-in fetcher")
+		assert(type(fg) == "table" and type(fg.fetch) == "function"
+			and type(fg.key) == "function", "fetchgit must be a built-in {fetch,key} fetcher")
 		local ok, e = pcall(fg, { id = "some-local-pkg" }, "/tmp/whatever")
 		assert(not ok and tostring(e):find("with.url", 1, true), tostring(e))
 		ok, e = pcall(fg, { id = "x", with = { url = "" } }, "/tmp/whatever")
@@ -1905,27 +1972,34 @@ assert(es2 == nil and type(err2) == "string")
 	testing.expect(t, ok, "listdir semantics must hold in Lua")
 }
 
-// A VM with a data dir can load a package declared in packages.lua:
-// makac.load_packages merges its exports under '<id>:<name>' keys and the
-// pkgs/ searcher makes its lib/ require-able.
+// A VM with a data dir can load a package wired in makac_project.lua:
+// makac.load_packages merges its exports under '<alias>:<name>' keys and the
+// pkgs/ searcher makes its lib/ require-able. It also covers the './'
+// relative-import searcher and makac.package_info.
 @(test)
 test_load_packages_and_pkgs_searcher :: proc(t: ^T) {
 	dir, derr := os.make_directory_temp("", "makac_vm_pkgs_*", context.allocator)
 	testing.expect(t, derr == nil, "temp dir")
 	defer os.remove_all(dir)
+	// project root = dir; data dir = dir/.makac; project file = dir/makac_project.lua
+	data_dir := strings.concatenate([]string{dir, "/.makac"}, context.temp_allocator)
+	// the fixture package lives OUTSIDE the data dir (filesystem fetcher, so
+	// no fetch is needed before loading)
 	testing.expect(
 		t,
 		os.make_directory_all(
-			strings.concatenate([]string{dir, "/packages/demo/lib"}, context.temp_allocator),
+			strings.concatenate([]string{dir, "/demopkg/lib"}, context.temp_allocator),
 		) ==
 		nil,
 	)
 	testing.expect(
 		t,
 		os.write_entire_file_from_string(
-			strings.concatenate([]string{dir, "/packages.lua"}, context.temp_allocator),
-			`-- fetchgit entry; the fetch itself is not under test here, only loading
-return { { id = "demo", fetcher = "fetchgit", with = { url = "unused" } } }`,
+			strings.concatenate([]string{dir, "/makac_project.lua"}, context.temp_allocator),
+			`return {
+  inputs = { demo = { fetcher = "filesystem", with = { path = "demopkg" } } },
+  packages = { demo = "demo" },
+}`,
 		) ==
 		nil,
 	)
@@ -1933,7 +2007,7 @@ return { { id = "demo", fetcher = "fetchgit", with = { url = "unused" } } }`,
 		t,
 		os.write_entire_file_from_string(
 			strings.concatenate(
-				[]string{dir, "/packages/demo/lib/util.lua"},
+				[]string{dir, "/demopkg/lib/util.lua"},
 				context.temp_allocator,
 			),
 			`return { hello = function() return "pkg-lib-ok" end }`,
@@ -1943,26 +2017,57 @@ return { { id = "demo", fetcher = "fetchgit", with = { url = "unused" } } }`,
 	testing.expect(
 		t,
 		os.write_entire_file_from_string(
-			strings.concatenate([]string{dir, "/packages/demo/makac.lua"}, context.temp_allocator),
-			`return { actions = { thing = function(w) return { out = { did = "thing" } } end },
+			strings.concatenate(
+				[]string{dir, "/demopkg/lib/reluser.lua"},
+				context.temp_allocator,
+			),
+			`-- a lib module that requires a sibling via a package-rooted relative import
+local util = require("./util")
+return { relhello = function() return "rel:" .. util.hello() end }`,
+		) ==
+		nil,
+	)
+	testing.expect(
+		t,
+		os.write_entire_file_from_string(
+			strings.concatenate([]string{dir, "/demopkg/makac_package.lua"}, context.temp_allocator),
+			`local reluser = require("./reluser") -- manifests can use './' too
+return {
+  actions = { thing = function(w) return { out = { did = reluser.relhello() } } end },
   fetchers = { fetchio = function(spec, dest) end } }`,
 		) ==
 		nil,
 	)
 
-	v := new(dir)
+	v := new(data_dir)
 	defer close(v)
 	err, ok := run_string(
 		v,
 		`
+assert(makac.fetch_all() == 1) -- filesystem inputs only validate, in place
 assert(makac.load_packages() == 1)
 local util = require("pkgs/demo/util")
 assert(util.hello() == "pkg-lib-ok")
+local rel = require("pkgs/demo/reluser")
+assert(rel.relhello() == "rel:pkg-lib-ok")
 local r = makac.run_action("demo:thing", nil)
-assert(r.out.did == "thing")
+assert(r.out.did == "rel:pkg-lib-ok")
 assert(type(makac.registry.fetchers["demo:fetchio"]) == "function")
 local ok2, err2 = pcall(require, "pkgs/demo/missing")
 assert(not ok2 and err2:find("module 'pkgs/demo/missing' not found"), tostring(err2))
+
+-- makac.package_info: a read-only description keyed by alias
+local info = makac.package_info("demo")
+assert(info and info.alias == "demo")
+assert(info.lib == "pkgs/demo")
+assert(info.actions[1] == "thing" and info.fetchers[1] == "fetchio")
+assert(next(info.requires) == nil)
+assert(makac.package_info("nope") == nil)
+
+-- './' outside any package (a workflow chunk) is a clear error
+local ok3, err3 = pcall(require, "./whatever")
+assert(not ok3 and tostring(err3):find("relative imports are only available from files inside a package", 1, true)
+	or tostring(err3):find("not inside any loaded package", 1, true), tostring(err3))
 `,
 		"test_load_packages",
 	)
@@ -1970,10 +2075,149 @@ assert(not ok2 and err2:find("module 'pkgs/demo/missing' not found"), tostring(e
 	testing.expect(t, ok, "load_packages + pkgs/ searcher must work in-VM")
 }
 
+// Manifest `requires` (design/packages.md): a flat membership check of the
+// aliases a package needs against the project's 'packages' table. A missing
+// wiring is a hard load error printing the package author's own message; a
+// satisfied requirement loads fine and shows up in makac.package_info.
+@(test)
+test_load_packages_requires :: proc(t: ^T) {
+	dir, derr := os.make_directory_temp("", "makac_vm_requires_*", context.allocator)
+	testing.expect(t, derr == nil, "temp dir")
+	defer os.remove_all(dir)
+	data_dir := strings.concatenate([]string{dir, "/.makac"}, context.temp_allocator)
+	testing.expect(t, os.make_directory_all(data_dir, os.perm_number(0o755)) == nil)
+	// fixture packages live outside the data dir (filesystem fetcher)
+	plant := proc(t: ^T, dir: string, name: string, manifest: string) {
+		pkg := strings.concatenate([]string{dir, "/pkgsrc/", name}, context.temp_allocator)
+		mkerr := os.make_directory_all(pkg, os.perm_number(0o755))
+		testing.expectf(t, mkerr == nil || mkerr == .Exist, "mkdir %s: {}", pkg, mkerr)
+		testing.expect(
+			t,
+			os.write_entire_file_from_string(
+				strings.concatenate([]string{pkg, "/makac_package.lua"}, context.temp_allocator),
+				manifest,
+			) ==
+			nil,
+		)
+	}
+	plant(t, dir, "dep.pkg", `return { }`)
+	plant(t, dir, "main.pkg", `return {
+  requires = { dep = "main.pkg's actions call dep:check; get it from https://example.invalid/dep (v2 or later)" } }`)
+	plant(t, dir, "scn", `return { }`)
+	project_path := strings.concatenate([]string{dir, "/makac_project.lua"}, context.temp_allocator)
+
+	// 1. 'dep' not wired -> hard error naming package, alias and message
+	testing.expect(
+		t,
+		os.write_entire_file_from_string(
+			project_path,
+			`return {
+  inputs = {
+    deplib = { fetcher = "filesystem", with = { path = "pkgsrc/dep.pkg" } },
+    main = { fetcher = "filesystem", with = { path = "pkgsrc/main.pkg" } },
+  },
+  packages = { main = "main" },
+}`,
+		) ==
+		nil,
+	)
+	v := new(data_dir)
+	err, ok := run_string(
+		v,
+		`
+local ok1, e1 = pcall(makac.load_packages)
+assert(not ok1, "unmet requires must fail the load")
+assert(e1:find("package 'main' (alias 'main') requires 'dep', which is not wired", 1, true), tostring(e1))
+assert(e1:find("main.pkg's actions call dep:check", 1, true), "author message must be shown: " .. tostring(e1))
+assert(e1:find("makac_project.lua", 1, true), tostring(e1))
+`,
+		"requires_unmet",
+	)
+	if !ok {fmt.eprintln(err.message); delete(err.message)}
+	testing.expect(t, ok, "unmet requires must be a hard error with the author's message")
+	close(v)
+
+	// 2. 'dep' wired -> loads; requires shows in package_info
+	testing.expect(
+		t,
+		os.write_entire_file_from_string(
+			project_path,
+			`return {
+  inputs = {
+    deplib = { fetcher = "filesystem", with = { path = "pkgsrc/dep.pkg" } },
+    main = { fetcher = "filesystem", with = { path = "pkgsrc/main.pkg" } },
+  },
+  packages = { dep = "deplib", main = "main" },
+}`,
+		) ==
+		nil,
+	)
+	v2 := new(data_dir)
+	defer close(v2)
+	err2, ok2 := run_string(
+		v2,
+		`
+assert(makac.load_packages() == 2)
+local info = makac.package_info("main")
+assert(info.requires["dep"]:find("dep:check", 1, true), "requires must surface in package_info")
+`,
+		"requires_met",
+	)
+	if !ok2 {delete(err2.message)}
+	testing.expect(t, ok2, "met requires must load and surface in package_info")
+
+	// 3. a requires key equal to an input LABEL gets a tailored error
+	//    (requires names aliases, not inputs)
+	testing.expect(
+		t,
+		os.write_entire_file_from_string(
+			project_path,
+			`return {
+  inputs = {
+    deplib = { fetcher = "filesystem", with = { path = "pkgsrc/dep.pkg" } },
+    main = { fetcher = "filesystem", with = { path = "pkgsrc/main.pkg" } },
+    scn = { fetcher = "filesystem", with = { path = "pkgsrc/scn" } },
+  },
+  packages = { dep = "deplib", main = "main" },
+}`,
+		) ==
+		nil,
+	)
+	v3 := new(data_dir)
+	defer close(v3)
+	plant(t, dir, "main.pkg", `return { requires = { scn = "msg" } }`)
+	err3, ok3 := run_string(
+		v3,
+		`
+local ok1, e1 = pcall(makac.load_packages)
+assert(not ok1 and e1:find("is an INPUT LABEL", 1, true), tostring(e1))
+`,
+		"requires_label_key",
+	)
+	if !ok3 {delete(err3.message)}
+	testing.expect(t, ok3, "an input label as a requires key must be rejected with a tailored error")
+
+	// 4. a non-string requires message is rejected
+	plant(t, dir, "main.pkg", `return { requires = { dep = 42 } }`)
+	v4 := new(data_dir)
+	defer close(v4)
+	err4, ok4 := run_string(
+		v4,
+		`
+local ok1, e1 = pcall(makac.load_packages)
+assert(not ok1 and e1:find("must be a string", 1, true), tostring(e1))
+`,
+		"requires_nonstring_msg",
+	)
+	if !ok4 {delete(err4.message)}
+	testing.expect(t, ok4, "a non-string requires message must be rejected")
+
+}
+
 // The built-in `filesystem` fetcher: a package lives at with.path and is
-// loaded IN PLACE (its own directory, not .makac/packages/<id>). pkgs/
+// loaded IN PLACE (its own directory, not .makac/packages/<name>). pkgs/
 // requires resolve from the source path, so edits are picked up without any
-// refetch step. Fetching only validates the path + makac.lua.
+// refetch step. Fetching only validates the path + makac_package.lua.
 @(test)
 test_filesystem_fetcher_in_place :: proc(t: ^T) {
 	// the "data dir" (<dir>/.makac) and the dev package next to it
@@ -2007,12 +2251,13 @@ test_filesystem_fetcher_in_place :: proc(t: ^T) {
 	testing.expect(
 		t,
 		os.write_entire_file_from_string(
-			strings.concatenate([]string{devpkg, "/makac.lua"}, context.temp_allocator),
-			`-- a package may require its own lib/ while loading
-local util = require("pkgs/mypkg.dev/util")
+			strings.concatenate([]string{devpkg, "/makac_package.lua"}, context.temp_allocator),
+			`-- a package may require its own lib/ while loading; './' is the
+-- package-rooted relative import (alias-independent)
+local util = require("./util")
 return {
   actions = { dev_hello = function(w) return { out = { v = util.VAL } } end },
-  -- packages may also contribute fetchers ('<id>:<name>'). This one just
+  -- packages may also contribute fetchers ('<alias>:<name>'). This one just
   -- writes a marker file at <dest>/marker.txt so tests can observe it ran.
   fetchers = { devmark = function(spec, dest)
     local f = assert(io.open(dest .. "/marker.txt", "w"))
@@ -2030,8 +2275,11 @@ return {
 	testing.expect(
 		t,
 		os.write_entire_file_from_string(
-			strings.concatenate([]string{root, "/.makac/packages.lua"}, context.temp_allocator),
-			`return { { id = "mypkg.dev", fetcher = "filesystem", with = { path = "devpkg" } } }`,
+			strings.concatenate([]string{root, "/makac_project.lua"}, context.temp_allocator),
+			`return {
+  inputs = { ["mypkg.dev"] = { fetcher = "filesystem", with = { path = "devpkg" } } },
+  packages = { mypkg = "mypkg.dev" },
+}`,
 		) ==
 		nil,
 	)
@@ -2048,20 +2296,20 @@ return {
 assert(makac.fetch_all() == 1)
 -- package loads from the SOURCE path: makac.pkg_dirs points at devpkg
 assert(makac.load_packages() == 1)
-assert(makac.pkg_dirs["mypkg.dev"]:find("devpkg"), tostring(makac.pkg_dirs["mypkg.dev"]))
-assert(not makac.pkg_dirs["mypkg.dev"]:find("/packages/"))
+assert(makac.pkg_dirs["mypkg"]:find("devpkg"), tostring(makac.pkg_dirs["mypkg"]))
+assert(not makac.pkg_dirs["mypkg"]:find("/packages/"))
 -- package-provided ACTION: via run_action and via step{}
-local r = makac.run_action("mypkg.dev:dev_hello", nil)
+local r = makac.run_action("mypkg:dev_hello", nil)
 assert(r.out.v == "in-place-v1", tostring(r.out.v))
-local st = step { uses = "mypkg.dev:dev_hello", name = "fs step" }
+local st = step { uses = "mypkg:dev_hello", name = "fs step" }
 assert(st.out.v == "in-place-v1")
 -- package-provided LIBRARY code from the workflow side
-local util = require("pkgs/mypkg.dev/util")
+local util = require("pkgs/mypkg/util")
 assert(util.VAL == "in-place-v1")
--- package-provided FETCHER: registered under '<id>:<name>' and callable
-local f = makac.registry.fetchers["mypkg.dev:devmark"]
+-- package-provided FETCHER: registered under '<alias>:<name>' and callable
+local f = makac.registry.fetchers["mypkg:devmark"]
 assert(type(f) == "function", "filesystem package's fetcher must be in the registry")
-f({ id = "anything" }, "`,
+f({ name = "anything" }, "`,
 			marker_dir,
 			`") -- fetcher signature: (spec, dest)
 local mf = assert(io.open("`,
@@ -2089,8 +2337,8 @@ mf:close()
 		v2,
 		`
 assert(makac.load_packages() == 1)
-package.loaded["pkgs/mypkg.dev/util"] = nil
-local util = require("pkgs/mypkg.dev/util")
+package.loaded["pkgs/mypkg/util"] = nil
+local util = require("pkgs/mypkg/util")
 assert(util.VAL == "in-place-v2", "edits must be picked up in place, got " .. tostring(util.VAL))
 `,
 		"test_filesystem_edit",
@@ -2102,12 +2350,15 @@ assert(util.VAL == "in-place-v2", "edits must be picked up in place, got " .. to
 	testing.expect(
 		t,
 		os.write_entire_file_from_string(
-			strings.concatenate([]string{root, "/.makac/packages.lua"}, context.temp_allocator),
+			strings.concatenate([]string{root, "/makac_project.lua"}, context.temp_allocator),
 			strings.concatenate(
 				[]string {
-					`return { { id = "mypkg.dev", fetcher = "filesystem", with = { path = "`,
+					`return {
+  inputs = { ["mypkg.dev"] = { fetcher = "filesystem", with = { path = "`,
 					devpkg,
-					`" } } }`,
+					`" } } },
+  packages = { mypkg = "mypkg.dev" },
+}`,
 				},
 				context.temp_allocator,
 			),
@@ -2120,13 +2371,177 @@ assert(util.VAL == "in-place-v2", "edits must be picked up in place, got " .. to
 		v3,
 		`
 assert(makac.load_packages() == 1)
-local r = makac.run_action("mypkg.dev:dev_hello", nil)
+local r = makac.run_action("mypkg:dev_hello", nil)
 assert(r.out.v == "in-place-v2")
 `,
 		"test_filesystem_abs",
 	)
 	if !ok3 {delete(err3.message)}
 	testing.expect(t, ok3, "absolute with.path must work")
+}
+
+// Fetch worklist (design/fetchers.md): a package fetched earlier in the same
+// run can provide the fetcher for a later input ('prov:copy'). Covers the
+// whole storage pipeline: content-addressed dirs, load-time key recomputation,
+// pruning of stale packages/ entries, the 'edited since fetching' load error
+// (new arguments -> new key -> missing directory), and the no-progress error.
+@(test)
+test_fetch_worklist_storage_and_prune :: proc(t: ^T) {
+	dir, derr := os.make_directory_temp("", "makac_vm_worklist_*", context.allocator)
+	testing.expectf(t, derr == nil, "make temp dir: {}", derr)
+	defer os.remove_all(dir)
+	defer delete(dir, context.allocator)
+
+	data_dir := strings.concatenate([]string{dir, "/.makac"}, context.temp_allocator)
+	testing.expect(t, os.mkdir_all(data_dir, os.perm_number(0o755)) == nil)
+
+	v := new(data_dir)
+	defer close(v)
+
+	// -- fixtures ------------------------------------------------------
+	// provider: a git repo whose package exports the 'copy' fetcher
+	// consumer source: a plain directory the copy fetcher will materialize
+	fixture, _ := strings.replace_all(
+		`
+		local function sh(cmd)
+			local r = makac.exec({ "sh", "-c", cmd })
+			assert(r.code == 0, cmd .. " -> " .. r.stderr)
+		end
+		-- provider package (a git repo)
+		sh("git init -q -b main @DIR@/provrepo")
+		local f = io.open("@DIR@/provrepo/makac_package.lua", "w")
+		f:write([=[
+return {
+  actions = { hi = function(w) return { out = { v = "prov-ok" } } end },
+  fetchers = { copy = {
+    -- a custom fetcher object: fetch + a key derived from the semantic args
+    key = function(w)
+      return "copy-" .. makac.sha256("copy\0" .. w.src):sub(1, 16)
+    end,
+    fetch = function(spec, dest)
+      assert(type(spec.with.src) == "string", "copy: with.src required")
+      local r = makac.exec({ "sh", "-c",
+        ("mkdir -p %q && cp -r %q/. %q/"):format(dest, spec.with.src, dest) })
+      assert(r.code == 0, r.stderr)
+    end,
+  } },
+}
+]=]); f:close()
+		sh("git -C @DIR@/provrepo -c user.email=t@t -c user.name=t add -A")
+		sh("git -C @DIR@/provrepo -c user.email=t@t -c user.name=t commit -qm init")
+		-- consumer package source (plain dir, materialized via prov:copy)
+		sh("mkdir -p @DIR@/conssrc")
+		f = io.open("@DIR@/conssrc/makac_package.lua", "w")
+		f:write([==[
+return {
+  actions = { hello = function(w) return { out = { v = "cons-ok" } } end } }
+]==]); f:close()
+	`,
+		"@DIR@",
+		dir,
+		context.temp_allocator,
+	)
+	ferr, fok := run_string(v, fixture)
+	defer delete(ferr.message)
+	if !testing.expect(t, fok, ferr.message) {return}
+
+	write_project := proc(t: ^T, root: string, body: string) {
+		p := strings.concatenate([]string{root, "/makac_project.lua"}, context.temp_allocator)
+		testing.expect(t, os.write_entire_file_from_string(p, body) == nil)
+	}
+	proj, _ := strings.replace_all(
+		`return {
+  inputs = {
+    -- cons uses a fetcher provided by the package fetched under 'prov':
+    -- the worklist must fetch prov before it can fetch cons
+    prov = { fetcher = "fetchgit", with = { url = "@DIR@/provrepo" } },
+    cons = { fetcher = "prov:copy", with = { src = "@DIR@/conssrc" } },
+  },
+  packages = { prov = "prov", cons = "cons" },
+}`,
+		"@DIR@",
+		dir,
+		context.temp_allocator,
+	)
+	write_project(t, dir, proj)
+
+	err, ok := run_string(
+		v,
+		`
+		local inputs = makac.read_project_file()
+		assert(makac.fetch_all() == 2)
+
+		-- content-addressed storage: the directory is the fetcher's key,
+		-- recomputed from the input entry (no lockfile, no recorded state)
+		local consdir = makac.resolve_pkg_dir(inputs.cons)
+		assert(consdir:match("/packages/copy%-%x+$"), consdir)
+		local provdir = makac.resolve_pkg_dir(inputs.prov)
+		assert(provdir:match("/packages/fetchgit%-%x+$"), provdir)
+
+		-- loading works: actions from both packages, incl. the chained fetch
+		assert(makac.load_packages() == 2)
+		assert(makac.run_action("cons:hello", nil).out.v == "cons-ok")
+		assert(makac.run_action("prov:hi", nil).out.v == "prov-ok")
+		assert(type(makac.registry.fetchers["prov:copy"]) == "table",
+			"package-provided fetcher stays usable as an object")
+
+		-- prune: a stale entry produced by no current input is removed
+		assert(makac.exec({ "mkdir", "-p", makac.data_dir .. "/packages/stale-0000" }).code == 0)
+		assert(makac.fetch_all() == 2)
+		assert(makac.fs.stat(makac.data_dir .. "/packages/stale-0000") == nil, "stale entry pruned")
+		assert(makac.fs.stat(provdir) ~= nil and makac.fs.stat(consdir) ~= nil,
+			"referenced dirs survive pruning")
+	`,
+		"test_worklist",
+	)
+	if !ok {fmt.eprintln(err.message); delete(err.message)}
+	testing.expect(t, ok, "worklist fetch + storage + prune must work")
+
+	// staleness: editing an input after fetching is caught at LOAD time
+	proj_stale, _ := strings.replace_all(
+		proj,
+		`/provrepo" }`,
+		`/provrepo", rev = "main~1" }`,
+		context.temp_allocator,
+	)
+	write_project(t, dir, proj_stale)
+	v2 := new(data_dir)
+	defer close(v2)
+	err2, ok2 := run_string(
+		v2,
+		`
+		local ok1, e1 = pcall(makac.load_packages)
+		assert(not ok1 and e1:find("nothing exists at", 1, true)
+			and e1:find("makac fetch", 1, true), tostring(e1))
+	`,
+		"test_stale_input",
+	)
+	if !ok2 {delete(err2.message)}
+	testing.expect(t, ok2, "edited-but-not-refetched input must fail at load time")
+
+	// no progress: a fetcher name no package provides (or a cycle) -> clear error
+	write_project(
+		t,
+		dir,
+		`return {
+  inputs = { x = { fetcher = "ghost:missing", with = {} } },
+  packages = { x = "x" },
+}`,
+	)
+	v3 := new(data_dir)
+	defer close(v3)
+	err3, ok3 := run_string(
+		v3,
+		`
+		local ok1, e1 = pcall(makac.fetch_all)
+		assert(not ok1, tostring(e1))
+		assert(e1:find("failed to make progress", 1, true), tostring(e1))
+		assert(e1:find("ghost:missing", 1, true), tostring(e1))
+	`,
+		"test_no_progress",
+	)
+	if !ok3 {delete(err3.message)}
+	testing.expect(t, ok3, "an unfetchable input must produce a no-progress error")
 }
 
 // filesystem fetcher validation errors: missing path, missing with.path,
@@ -2147,14 +2562,18 @@ test_filesystem_fetcher_errors :: proc(t: ^T) {
 
 	write_pkgs := proc(root: string, body: string) {
 		_ = os.write_entire_file_from_string(
-			strings.concatenate([]string{root, "/.makac/packages.lua"}, context.temp_allocator),
+			strings.concatenate([]string{root, "/makac_project.lua"}, context.temp_allocator),
 			body,
 		)
 	}
 	data_dir := strings.concatenate([]string{root, "/.makac"}, context.temp_allocator)
 
 	// missing with.path
-	write_pkgs(root, `return { { id = "bad", fetcher = "filesystem" } }`)
+	write_pkgs(
+		root,
+		`return { inputs = { ["bad.pkg"] = { fetcher = "filesystem" } },
+  packages = { bad = "bad.pkg" } }`,
+	)
 	v := new(data_dir)
 	err, ok := run_string(
 		v,
@@ -2173,7 +2592,8 @@ assert(not ok2 and e2:find("with.path", 1, true), tostring(e2))
 	// path does not exist
 	write_pkgs(
 		root,
-		`return { { id = "bad", fetcher = "filesystem", with = { path = "no-such-pkg" } } }`,
+		`return { inputs = { ["bad.pkg"] = { fetcher = "filesystem", with = { path = "no-such-pkg" } } },
+  packages = { bad = "bad.pkg" } }`,
 	)
 	v2 := new(data_dir)
 	err2, ok2 := run_string(
@@ -2190,10 +2610,11 @@ assert(not ok2 and e2:find("no-such-pkg", 1, true), tostring(e2))
 	testing.expect(t, ok2, "nonexistent path must error clearly")
 	close(v2)
 
-	// listed but not fetched (non-filesystem): clear 'makac fetch' hint
+	// wired but not fetched (non-filesystem): clear 'makac fetch' hint
 	write_pkgs(
 		root,
-		`return { { id = "ghost", fetcher = "fetchgit", with = { url = "unused" } } }`,
+		`return { inputs = { ["ghost.pkg"] = { fetcher = "fetchgit", with = { url = "unused" } } },
+  packages = { ghost = "ghost.pkg" } }`,
 	)
 	v3 := new(data_dir)
 	err3, ok3 := run_string(

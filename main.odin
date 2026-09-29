@@ -15,7 +15,7 @@ USAGE ::
 commands:
   init <path>       initialize a .makac data directory
   run <workflow>    run a workflow file
-  fetch             fetch packages listed in .makac/packages.lua
+  fetch             fetch packages listed in makac_project.lua
   doctor [name...]  report the health of makac and its packages
 
 flags:
@@ -40,7 +40,7 @@ run_cmd := ap.Command {
 
 fetch_cmd := ap.Command {
 	name = "fetch",
-	help = "fetch packages listed in .makac/packages.lua",
+	help = "fetch packages listed in makac_project.lua",
 }
 
 doctor_cmd := ap.Command {
@@ -88,7 +88,14 @@ main :: proc() {
 			fmt.eprint(USAGE)
 			os.exit(1)
 		}
-		if err := dd.init(pargs.value[0]); err != .None {
+		switch dd.init(pargs.value[0]) {
+		case .None:
+		case .Project_File_Failure:
+			fmt.eprintf(
+				"makac: init: created the data directory but could not create 'makac_project.lua' next to it\n",
+			)
+			os.exit(1)
+		case .Mkdir_Failure, .Not_Found:
 			fmt.eprintf("makac: init: failed to create data directory at '%s'\n", pargs.value[0])
 			os.exit(1)
 		}
@@ -120,8 +127,8 @@ main :: proc() {
 		}
 		defer vm.close(v)
 		// Load fetched packages BEFORE evaluating the workflow (task23):
-		// their actions/fetchers join makac's registries as '<id>:<name>'
-		// and their lib/ is require-able via 'pkgs/<id>/...' (task22).
+		// their actions/fetchers join makac's registries as '<alias>:<name>'
+		// and their lib/ is require-able via 'pkgs/<alias>/...' (task22).
 		// Nothing fetched (.makac/packages absent or empty) is skipped
 		// silently — fetching is the user's explicit 'makac fetch' step,
 		// never automatic.
@@ -156,26 +163,34 @@ main :: proc() {
 		dir, rok := resolve_datadir()
 		if !rok {os.exit(1)}
 		defer delete(dir)
-		pkgs_path := strings.concatenate([]string{dir, "/packages.lua"}, context.temp_allocator)
+		// the project file lives beside the data directory, not inside it
+		// (design/packages.md)
+		pkgs_path := dd.project_file_path(dir, context.temp_allocator)
 		if !os.exists(pkgs_path) {
 			// nothing to fetch is NOT an error; explain where the file goes
 			// and what it must look like (explore-through-help-output)
-			fmt.printf(`makac: no packages.lua found.
+			fmt.printf(`makac: no makac_project.lua found.
 
-The package list for this project lives at:
+The project file for this project lives at:
   %s
-Create it (a Lua file that MUST return a table of package entries), e.g.:
+Create it (a Lua file that MUST return a table), e.g.:
 
-  -- .makac/packages.lua
+  -- makac_project.lua
   return {{
-    {{
-      id = "qemu",              -- referenced as 'qemu:<action>' in workflows
-      fetcher = "fetchgit",     -- built-in fetchers: "fetchurl", "fetchgit", "filesystem"
-      with = {{                  -- arguments for the fetcher
-        url = "https://github.com/user/some-repo.git",
-        rev = "main",
+    inputs = {{
+      -- the key is a local label for the fetch instruction
+      qemu = {{
+        fetcher = "fetchgit",     -- built-in fetchers: "fetchurl", "fetchgit", "filesystem"
+        with = {{                  -- arguments for the fetcher
+          url = "https://github.com/user/some-repo.git",
+          rev = "main",
+        }},
       }},
     }},
+    -- wire an alias to an input label; the alias is what workflows and
+    -- packages use: 'qemu:<action>' in a step's uses field,
+    -- require("pkgs/qemu/...")
+    packages = {{ qemu = "qemu" }},
   }}
 
 Then run 'makac fetch' again.
@@ -275,6 +290,8 @@ resolve_datadir :: proc() -> (dir: string, ok: bool) {
 		return d, true
 	case .Mkdir_Failure:
 		fmt.eprintf("makac: found project root but failed to create '.makac'\n")
+	case .Project_File_Failure:
+		fmt.eprintf("makac: found project root but failed to create 'makac_project.lua'\n")
 	case .Not_Found:
 		fmt.eprintf(
 			"makac: could not determine the root of the project (no '.makac' or '.git' found)\n",

@@ -13,7 +13,7 @@
 makac = makac or {}
 
 -- Registries: actions are callable step bodies (built-ins plus actions
--- contributed by fetched packages); fetchers populate .makac/packages/<id>.
+-- contributed by fetched packages); fetchers populate .makac/packages/<name>.
 -- action_default_names remembers each action's `default_name` for `step`.
 makac.registry = { actions = {}, fetchers = {}, action_default_names = {} }
 
@@ -305,14 +305,32 @@ end
 
 makac.define_action("shell", shell_fn, { default_name = "run shell command" })
 
--- Register `fn` as the built-in fetcher `name` (usable as `fetcher.name` in
--- packages.lua). Fetchers take the fetcher table from packages.lua and the
+-- Register `fn` as the built-in fetcher `name` (usable as a `fetcher` string
+-- in makac_project.lua). Fetchers take the input entry table and the
 -- destination directory path: fetch(def, dest).
 function makac.register_fetcher(name, fn)
 	assert(type(name) == "string" and name ~= "",
 		"makac.register_fetcher: name must be a non-empty string")
-	assert(type(fn) == "function",
-		"makac.register_fetcher: fn must be a function")
+	-- a fetcher is a function fetch(spec, dest), or better, an object
+	-- { fetch = fn(spec, dest), key = fn(with) -> string, in_place = bool }:
+	-- 'key' is a pure function hashing the semantically relevant 'with' fields
+	-- into the fixed-length, safe-charset storage key for the package (a
+	-- fetcher without 'key' cannot fetch inputs; in_place fetchers
+	-- (filesystem) are used in their source directory and need no key).
+	if type(fn) == "table" then
+		assert(type(fn.fetch) == "function",
+			"makac.register_fetcher: a fetcher object must have a 'fetch' function")
+		assert(fn.key == nil or type(fn.key) == "function" or type(fn.key) == "string",
+			"makac.register_fetcher: 'key' must be a function (or a literal string)")
+		if getmetatable(fn) == nil then
+			setmetatable(fn, {
+				__call = function(self, spec, dest) return self.fetch(spec, dest) end,
+			})
+		end
+	else
+		assert(type(fn) == "function",
+			"makac.register_fetcher: fn must be a function or a { fetch = ..., key = ... } table")
+	end
 	if makac.registry.fetchers[name] then
 		error(("makac.register_fetcher: fetcher '%s' is already registered"):format(name), 0)
 	end
@@ -720,7 +738,7 @@ end
 -- Built-in `fetchurl` fetcher (design/fetchers.md): fetches over HTTP(S),
 -- verifies the bytes against sha256, and unpacks into `dest`. Follows the
 -- fetcher contract fn(spec, dest_dir) where spec is the FULL entry table from
--- packages.lua, so the fetcher's arguments are under spec.with:
+-- makac_project.lua, so the fetcher's arguments are under spec.with:
 --
 --   with.url      (required) URL to fetch (http/https; anything curl can GET)
 --   with.sha256   (required) 64 hex chars; verified after fetch — a mismatch
@@ -728,9 +746,18 @@ end
 --   with.unpacker (required) "tar" to extract with the system tar, or a custom
 --                  function(args, dst_dir) which receives the downloaded file
 --                  path in args.archive
-makac.register_fetcher("fetchurl", function(spec, dest)
+makac.register_fetcher("fetchurl", {
+	-- storage key: hash of the semantically relevant args. url identifies
+	-- what the server hands you; sha256 pins what you accept -- together they
+	-- identify the bytes. The unpacker is post-processing of pinned bytes and
+	-- does NOT participate (it cannot change *what* was fetched).
+	key = function(w)
+		return "fetchurl-" .. makac.sha256("fetchurl\0" .. tostring(w.url)
+			.. "\0" .. tostring(w.sha256)):sub(1, 32)
+	end,
+	fetch = function(spec, dest)
 	assert(type(spec) == "table", "fetchurl: expected the full package entry table")
-	local pkgid = tostring(spec.id and spec.id or "<no id>")
+	local pkgid = tostring(spec.label or "<unnamed>")
 	local args = spec.with
 	if type(args) ~= "table" then
 		error(("fetchurl: package '%s': requires a 'with' table { url = ..., sha256 = ..., unpacker = ... }"):format(pkgid), 0)
@@ -788,12 +815,13 @@ makac.register_fetcher("fetchurl", function(spec, dest)
 	if res.code ~= 0 then
 		error(("fetchurl: failed to extract tarball fetched from %s into '%s': %s"):format(url, dest, res.stderr), 0)
 	end
-end)
+	end,
+})
 
 -- Built-in `fetchgit` fetcher (design/fetchers.md): fetches a package over
 -- Git by shelling out to `git` (assumed on PATH). Follows the fetcher
 -- contract fn(spec, dest_dir) where spec is the FULL entry table from
--- packages.lua; the fetcher's arguments are under spec.with:
+-- makac_project.lua; the fetcher's arguments are under spec.with:
 --   with.url  (required) git URL to clone
 --   with.rev  (optional) commit hash, tag, or branch to check out; without it
 --              the repository's default branch is checked out
@@ -803,9 +831,15 @@ end)
 -- re-runnable. Unlike target run results (where a non-zero exit is data), a
 -- non-zero git exit here is a fetch FAILURE and aborts the fetch run; git's
 -- stderr is included in the error message.
-makac.register_fetcher("fetchgit", function(spec, dest)
+makac.register_fetcher("fetchgit", {
+	-- storage key: url + rev identify what is checked out
+	key = function(w)
+		return "fetchgit-" .. makac.sha256("fetchgit\0" .. tostring(w.url)
+			.. "\0" .. tostring(w.rev or "<default>")):sub(1, 32)
+	end,
+	fetch = function(spec, dest)
 	assert(type(spec) == "table", "fetchgit: expected the full package entry table")
-	local pkgid = tostring(spec.id and spec.id or "<no id>")
+	local pkgid = tostring(spec.label or "<unnamed>")
 	local args = spec.with or {}
 	local url = args.url
 	if type(url) ~= "string" or url == "" then
@@ -861,7 +895,8 @@ makac.register_fetcher("fetchgit", function(spec, dest)
 	if rev then
 		git_run(("git checkout %q"):format(rev), "-C", dest, "checkout", "--quiet", rev)
 	end
-end)
+	end,
+})
 
 -- Built-in `filesystem` fetcher: the package LIVES AT 'with.path' on the
 -- local filesystem and is used IN PLACE — nothing is copied anywhere (dest
@@ -871,53 +906,137 @@ end)
 -- Relative paths resolve against the project root (the directory holding
 -- the .makac data dir), so workflows work from any subdirectory.
 --
---   { id = "mypkg.dev", fetcher = "filesystem",
---     with = { path = "path/to/package" } }
+--   inputs = { ["mypkg.dev"] = { fetcher = "filesystem",
+--     with = { path = "path/to/package" } } }
 --
 -- 'Fetching' only validates: the path must be an existing directory with a
--- makac.lua at its root (design/packages.md) — a typo'd path is thus caught
--- by 'makac fetch', not later at run time. Loading reads from the path
--- itself (see makac.load_packages / makac.resolve_pkg_dir).
-makac.register_fetcher("filesystem", function(spec, dest)
+-- makac_package.lua at its root (design/packages.md) — a typo'd path is thus
+-- caught by 'makac fetch', not later at run time. Loading reads from the
+-- path itself (see makac.load_packages / makac.resolve_pkg_dir).
+makac.register_fetcher("filesystem", {
+	in_place = true, -- the package is used from its source path; it is never
+	-- copied into .makac/packages/, so there is no storage key (and nothing
+	-- to prune)
+	fetch = function(spec, dest)
 	assert(type(spec) == "table", "filesystem: expected the full package entry table")
-	local pkgid = tostring(spec.id)
+	local pkgid = tostring(spec.label)
 	local dir = makac.resolve_pkg_dir(spec) -- validates with.path
 	if not makac.listdir(dir) then
 		error(("filesystem: package '%s': path '%s' does not exist or is not a directory"):format(pkgid, dir), 0)
 	end
-	local f = io.open(dir .. "/makac.lua", "r")
+	local f = io.open(dir .. "/makac_package.lua", "r")
 	if not f then
-		error(("filesystem: package '%s': no makac.lua at '%s' (a package must have one at its root, see design/packages.md)"):format(pkgid, dir), 0)
+		error(("filesystem: package '%s': no makac_package.lua at '%s' (a package must have one at its root, see design/packages.md)"):format(pkgid, dir), 0)
 	end
 	f:close()
 	print(("using '%s' in place (nothing copied): %s"):format(pkgid, dir))
-end)
+	end,
+})
 
--- ==== Package list (design/packages.md) ====
+-- ==== Project file (design/packages.md) ====
 
--- Read and validate <data_dir>/packages.lua. Returns an array of package
--- definition tables. Any violation of the format is a hard error naming the
--- offending entry index and key (design/packages.md):
+-- The project root: the directory containing the data directory. The data
+-- directory lives at `.makac` in the project root (design/data_directory.md),
+-- so this is the repository root in the normal case.
+function makac.project_root(data_dir)
+	data_dir = data_dir or makac.data_dir
+	local root, tail = data_dir:match("^(.*)/([^/]+)$")
+	if tail == nil then return "." end -- bare (relative) name: root is the CWD
+	if root == "" then return "/" end -- the data dir sits directly under /
+	return root
+end
+
+-- Path of the project file: <project root>/makac_project.lua. The project
+-- file lives BESIDE the data directory, not inside it (design/packages.md):
+-- the data directory holds only fetched and generated state, so it can be
+-- gitignored wholesale, while the project file is version-controlled with
+-- the rest of the project.
+function makac.project_file_path(data_dir)
+	return makac.project_root(data_dir) .. "/makac_project.lua"
+end
+
+-- Validate an alias: aliases key the project's `packages` table and prefix
+-- every reference into a package ('<alias>:<action>', 'pkgs/<alias>/...'),
+-- so they may not contain ':' or '/'.
+local function _valid_alias(alias)
+	return type(alias) == "string" and alias ~= ""
+		and not alias:find(":", 1, true) and not alias:find("/", 1, true)
+end
+
+-- Validate an input label: a purely local name for the fetch instruction. It
+-- names nothing in Lua-land (aliases do that); it shows up in fetch/load
+-- up in messages.
+local function _valid_label(label)
+	return type(label) == "string" and label ~= ""
+		and not label:find("/", 1, true) and not label:find(":", 1, true)
+end
+
+-- Validate a fetcher VALUE as used by an input entry: a string naming a
+-- registered fetcher (resolved at fetch time — it may be provided by another
+-- package in the same project), or an inline object { fetch = fn(spec, dest),
+-- key = fn(with)|"literal", in_place = bool }. A bare function is rejected:
+-- without a 'key' method there is no storage key, so the fetch could never be
+-- resolved at load time.
+local function _valid_fetcher_value(v)
+	if type(v) == "string" then return v ~= "" end
+	if type(v) ~= "table" then return false end
+	if type(v.fetch) ~= "function" then return false end
+	if v.key ~= nil and type(v.key) ~= "function" and type(v.key) ~= "string" then return false end
+	return true
+end
+
+-- Validate one input entry's shape; `label` is its inputs key, used in error
+-- messages.
+local function _validate_input(label, def)
+	if type(def) ~= "table" then
+		error(("makac: makac_project.lua: input '%s' must be a table, got %s"):format(label, type(def)), 0)
+	end
+	if not _valid_fetcher_value(def.fetcher) then
+		local got = type(def.fetcher)
+		if got == "function" then
+			error(("makac: makac_project.lua: input '%s': a bare function cannot be an input fetcher (no storage key). Use { fetch = fn, key = \"a-literal\" } or name a registered fetcher"):format(label), 0)
+		end
+		error(("makac: makac_project.lua: input '%s': 'fetcher' must be a non-empty string (fetcher name, e.g. 'fetchgit') or a { fetch = fn, key = fn|string } table, got %s"):format(label, got), 0)
+	end
+	if def.with ~= nil and type(def.with) ~= "table" then
+		error(("makac: makac_project.lua: input '%s': 'with' must be a table of fetcher arguments, got %s"):format(label, type(def.with)), 0)
+	end
+end
+
+-- Read and validate <project root>/makac_project.lua (design/packages.md):
 --
 --   return {
---     { id = "qemu",                  -- non-empty string, may not contain ':'
---       fetcher = "fetchgit",         -- string (fetcher name) OR a function
---       with = { url = "...", ... } },-- optional args table for the fetcher
+--     inputs = {
+--       -- key: a local LABEL for the fetch instruction
+--       qemu = { fetcher = "fetchgit",
+--         with = { url = "...", rev = "..." } },
+--     },
+--     -- alias -> input label; aliases are the ONLY names workflows and
+--     -- packages use ('qemu:img', require("pkgs/qemu/img"))
+--     packages = { qemu = "qemu" },
 --   }
-function makac.read_package_defs(data_dir)
+--
+-- Returns inputs, aliases, labels where
+--   inputs  = map label -> input entry (entry gets a .label field)
+--   aliases = array of { alias = ..., label = ... }, sorted by alias
+--   labels  = the input labels, sorted (deterministic processing order)
+-- Absent `inputs`/`packages` keys count as empty tables; unknown top-level
+-- keys are ignored so the format can grow. Any format violation is a hard
+-- error naming the offending key.
+function makac.read_project_file(data_dir)
 	data_dir = data_dir or makac.data_dir
-	local path = data_dir .. "/packages.lua"
+	local path = makac.project_file_path(data_dir)
 	local f = io.open(path, "r")
 	if not f then
-		error(("makac: no package list found at '%s'"):format(path), 0)
+		error(("makac: no project file found at '%s'"):format(path), 0)
 	end
 	local src = f:read("a")
 	f:close()
 
 	-- the file is either a chunk returning a table or a bare table
 	-- constructor; try as-is, then as an expression
-	local chunk = load(src, "packages.lua")
-	if not chunk then chunk = load("return\n" .. src, "packages.lua") end
+	local chunk = load(src, "makac_project.lua")
+	if not chunk then chunk = load("return\n" .. src, "makac_project.lua") end
 	if not chunk then
 		error(("makac: failed to parse '%s'"):format(path), 0)
 	end
@@ -926,237 +1045,619 @@ function makac.read_package_defs(data_dir)
 		error(("makac: failed to evaluate '%s': %s"):format(path, tostring(defs)), 0)
 	end
 	if type(defs) ~= "table" then
-		error(("makac: packages.lua must return a table (an array of package entries; %s returned %s)"):format(path, type(defs)), 0)
+		error(("makac: makac_project.lua must return a table ({ inputs = ..., packages = ... }; %s returned %s)"):format(path, type(defs)), 0)
 	end
 
-	local out = {}
-	for i, def in ipairs(defs) do
-		if type(def) ~= "table" then
-			error(("makac: packages.lua entry #%d must be a table, got %s"):format(i, type(def)), 0)
-		end
-		local id = def.id
-		if type(id) ~= "string" or id == "" then
-			error(("makac: packages.lua entry #%d: 'id' must be a non-empty string"):format(i), 0)
-		end
-		-- ':' separates a package id from its action/fetcher/module names when
-		-- referencing into a package, so ids may not contain it themselves
-		if id:find(":", 1, true) then
-			error(("makac: packages.lua entry #%d (id '%s'): 'id' must not contain ':'"):format(i, id), 0)
-		end
-		local ft = type(def.fetcher)
-		if (ft ~= "string" and ft ~= "function") or (ft == "string" and def.fetcher == "") then
-			error(("makac: packages.lua entry #%d (id '%s'): 'fetcher' must be a non-empty string (fetcher name, e.g. 'fetchgit' or 'fetchurl') or a function, got %s"):format(i, id, def.fetcher == "" and "empty string" or ft), 0)
-		end
-		if def.with ~= nil and type(def.with) ~= "table" then
-			error(("makac: packages.lua entry #%d (id '%s'): 'with' must be a table of fetcher arguments, got %s"):format(i, id, type(def.with)), 0)
-		end
-		out[#out + 1] = def
+	-- inputs
+	local raw_inputs = defs.inputs
+	if raw_inputs == nil then raw_inputs = {} end
+	if type(raw_inputs) ~= "table" then
+		error(("makac: makac_project.lua: 'inputs' must be a table mapping an input label to its fetch entry, got %s"):format(type(raw_inputs)), 0)
 	end
-	return out
+	local inputs, labels = {}, {}
+	for label, def in pairs(raw_inputs) do
+		if not _valid_label(label) then
+			error(("makac: makac_project.lua: input label %s must be a non-empty string without '/' or ':'"):format(("'%s'"):format(tostring(label))), 0)
+		end
+		_validate_input(label, def)
+		def.label = label
+		inputs[label] = def
+		labels[#labels + 1] = label
+	end
+	table.sort(labels) -- deterministic processing order
+
+	-- packages (the alias wiring)
+	local raw_packages = defs.packages
+	if raw_packages == nil then raw_packages = {} end
+	if type(raw_packages) ~= "table" then
+		error(("makac: makac_project.lua: 'packages' must be a table mapping an alias to an input label, got %s"):format(type(raw_packages)), 0)
+	end
+	local aliases = {}
+	for alias, label in pairs(raw_packages) do
+		if not _valid_alias(alias) then
+			error(("makac: makac_project.lua: alias %s must be a non-empty string without ':' or '/'"):format(tostring(alias)), 0)
+		end
+		if type(label) ~= "string" or inputs[label] == nil then
+			error(("makac: makac_project.lua: alias '%s' refers to unknown input %s (wire it to a key of 'inputs')"):format(alias, tostring(label)), 0)
+		end
+		aliases[#aliases + 1] = { alias = alias, label = label }
+	end
+	table.sort(aliases, function(a, b) return a.alias < b.alias end)
+
+	return inputs, aliases, labels
 end
 
--- Resolve a package entry's fetcher to the fetcher function: a string names
--- a registered fetcher (built-in or contributed by an earlier package), a
--- function is used as-is.
+-- Resolve an input entry's fetcher to the fetch CALLABLE: a string names a
+-- registered fetcher (built-in or contributed by a package fetched earlier in
+-- the same 'makac fetch' run), an inline object is used as-is.
 function makac.resolve_fetcher(def)
 	local fn = def.fetcher
 	if type(fn) == "string" then
 		fn = makac.registry.fetchers[fn]
 		if not fn then
-			error(("makac: package '%s': no known fetcher named '%s'"):format(def.id, def.fetcher), 0)
+			error(("makac: input '%s': no known fetcher named '%s'"):format(def.label, def.fetcher), 0)
 		end
 	end
+	if type(fn) == "table" then return fn.fetch end
 	return fn
 end
 
--- Human-readable name of a package entry's fetcher (for progress/reporting).
-function makac._fetcher_name(def)
-	if type(def.fetcher) == "string" then return def.fetcher end
-	return "<function>"
+-- Resolve an INPUT entry's fetcher for the fetch machinery. Returns
+--   fetch_fn, key_fn|nil, in_place, display_name
+-- or NIL when a named fetcher is not (yet) registered — it may be provided by
+-- a package fetched later in the same run, so callers defer (the fetch
+-- worklist retries) rather than error. A registered or inline fetcher that
+-- cannot store (no 'key', not in_place) is a hard error HERE: deferring can
+-- never fix it.
+local function _input_fetcher(def)
+	local f = def.fetcher
+	local display = "<inline>"
+	if type(f) == "string" then
+		display = f
+		f = makac.registry.fetchers[f]
+		if f == nil then return nil end -- defer: may come from a not-yet-fetched package
+	end
+	local fetch_fn, key_fn, in_place
+	if type(f) == "function" then
+		fetch_fn = f -- registered plain function: workflow-time only
+	elseif type(f) == "table" then
+		fetch_fn = f.fetch
+		if type(f.key) == "function" then
+			key_fn = f.key
+		elseif type(f.key) == "string" then
+			local lit = f.key
+			key_fn = function() return lit end
+		end
+		in_place = f.in_place == true
+	end
+	if not in_place and key_fn == nil then
+		error(("makac: input '%s': fetcher '%s' cannot fetch inputs: it provides no 'key' method (a fetcher used from makac_project.lua must be an object { fetch = fn, key = fn })"):format(def.label, display), 0)
+	end
+	return fetch_fn, key_fn, in_place, display
 end
 
--- Where a package entry's code lives. Non-filesystem packages live where
--- 'makac fetch' put them: <data_dir>/packages/<id>/. A package with the
--- built-in 'filesystem' fetcher is used IN PLACE at with.path; a relative
--- path resolves against the project root (the directory containing the
--- .makac data dir), so the reference is stable no matter which subdirectory
--- a workflow runs from. Errors clearly when with.path is missing/invalid.
+-- Is an input entry in-place (filesystem fetcher)? Such entries are never
+-- copied into .makac/packages/; their code root is with.path.
+local function _is_in_place(def)
+	if def.fetcher == "filesystem" then return true end
+	if type(def.fetcher) == "table" and def.fetcher.in_place == true then return true end
+	return false
+end
+
+-- Where an input entry's code lives. In-place ('filesystem') inputs resolve
+-- to with.path (relative paths resolve against the project root, the
+-- directory containing the .makac data dir). Stored inputs RECOMPUTE the
+-- storage key from the entry: <data_dir>/packages/<fetcher key>/. Same
+-- arguments -> same directory: a fetched input is up to date iff its
+-- directory exists, and editing an input changes the key, so a stale/never-
+-- fetched input simply has no directory (callers turn that into
+-- 'run makac fetch'). A named fetcher that is not (yet) registered — it may
+-- be provided by a not-yet-loaded package — is NOT an error here: returns nil
+-- so worklist callers (fetch, load) can defer and retry.
 function makac.resolve_pkg_dir(def, data_dir)
 	data_dir = data_dir or makac.data_dir
-	assert(type(def) == "table" and type(def.id) == "string",
+	assert(type(def) == "table" and type(def.label) == "string",
 		"resolve_pkg_dir: expected a package definition table")
-	if def.fetcher == "filesystem" then
+	if _is_in_place(def) then
 		local path = def.with and def.with.path
 		if type(path) ~= "string" or path == "" then
-			error(("makac: package '%s': the 'filesystem' fetcher requires a non-empty 'with.path' (the package's directory on disk)"):format(def.id), 0)
+			error(("makac: input '%s': the 'filesystem' fetcher requires a non-empty 'with.path' (the package's directory on disk)"):format(def.label), 0)
 		end
 		if path:sub(1, 1) == "/" then return path end -- already absolute
-		return data_dir .. "/../" .. path
+		local root = makac.project_root(data_dir)
+		if root:sub(-1) ~= "/" then root = root .. "/" end
+		return root .. path
 	end
-	return data_dir .. "/packages/" .. def.id
+	local fetch_fn, key_fn, in_place, display = _input_fetcher(def)
+	if fetch_fn == nil then return nil end -- fetcher not registered yet: deferrable
+	local key = key_fn(def.with or {})
+	if type(key) ~= "string" or not key:match("^[A-Za-z0-9._%-]+$") then
+		error(("makac: input '%s': fetcher '%s' produced an invalid storage key %s (must be non-empty, [A-Za-z0-9._-])"):format(def.label, display, tostring(key)), 0)
+	end
+	return data_dir .. "/packages/" .. key
 end
 
--- Pretty-print the package definitions from packages.lua (one line per
--- package: index, id, fetcher name).
-function makac._print_package_defs(defs)
-	if #defs == 0 then
-		print("no packages defined.")
-		return
-	end
-	print(("defined packages (#%d):"):format(#defs))
-	for i, def in ipairs(defs) do
-		print(("  %d. %s (fetcher: %s)"):format(i, def.id, makac._fetcher_name(def)))
-	end
-end
-
--- Fetch every package listed in <data_dir>/packages.lua into
--- <data_dir>/packages/<id>/ using its declared fetcher. Entries are fetched
--- IN FILE ORDER (design/packages.md: an earlier fetched package may provide
--- the fetcher for a later one). The fetcher registry is prepopulated with
--- the built-ins fetchurl/fetchgit; an unknown fetcher name is an error naming
--- the package id and the fetcher. Any fetch failure aborts the whole fetch
--- run (non-zero exit).
+-- Fetch every input listed in <project root>/makac_project.lua using a
+-- WORKLIST: an input is fetched as soon as its fetcher resolves in the
+-- registry; after each fetch the package's manifest runs (its fetchers merge
+-- into the registry under '<alias>:<name>' for every alias wired to it), so a
+-- package fetched this run can provide the fetcher for a later input. A full
+-- pass with no progress means the remaining inputs wait on fetchers that will
+-- never arrive (unwired provider, typo, or a cycle) — hard error naming, per
+-- input, what it is waiting for.
 --
--- FUTURE (design/fetchers.md chaining): a package that is fetched and whose
--- makac.lua registers additional fetchers should become usable as the
--- fetcher for LATER entries in the same fetch run. Packages are only loaded
--- during 'makac run' for now (see load_packages) — fetch-during-fetch
--- chaining is not implemented yet.
+-- Stored packages land in <data_dir>/packages/<storage key>/, the key coming
+-- from the fetcher's 'key' method (a pure hash of the semantically relevant
+-- 'with' fields). In-place ('filesystem') inputs are only validated; nothing
+-- is stored for them. After a successful run, any packages/ entry no current
+-- input produced is pruned. Any failure aborts the run.
 function makac.fetch_all(data_dir)
 	data_dir = data_dir or makac.data_dir
-	local defs = makac.read_package_defs(data_dir)
-	for _, def in ipairs(defs) do
-		local dest = data_dir .. "/packages/" .. def.id
-		local fetcher = makac.resolve_fetcher(def) -- errors if unknown
-		print(("fetching %s via %s..."):format(def.id, makac._fetcher_name(def)))
-		local ok, err = pcall(fetcher, def, dest)
-		if not ok then
-			error(("makac: fetch: package '%s': %s"):format(def.id, tostring(err)), 0)
-		end
-		print(("fetched %s"):format(def.id))
+	local inputs, aliases, labels = makac.read_project_file(data_dir)
+
+	-- label -> aliases wired to it (a fetched package's fetchers join the
+	-- registry under EACH such alias)
+	local label_aliases = {}
+	for _, a in ipairs(aliases) do
+		label_aliases[a.label] = label_aliases[a.label] or {}
+		label_aliases[a.label][#label_aliases[a.label] + 1] = a.alias
 	end
-	return #defs
+
+	local keep = {} -- storage keys this run produced (for the prune step)
+	local done, remaining = {}, #labels
+	while remaining > 0 do
+		local resolved = 0
+		for _, label in ipairs(labels) do
+			if done[label] then goto continue end
+			local def = inputs[label]
+			local fetch_fn, _, in_place, display = _input_fetcher(def) -- nil: defer
+			if fetch_fn == nil then goto continue end
+
+			local dest
+			if not in_place then
+				dest = makac.resolve_pkg_dir(def, data_dir) -- computes the key
+			end
+			print(("fetching %s via %s..."):format(label, display))
+			local ok, err = pcall(fetch_fn, def, dest)
+			if not ok then
+				error(("makac: fetch: input '%s': %s"):format(label, tostring(err)), 0)
+			end
+
+			-- register the code root before running the manifest: the
+			-- manifest RUNS (it is Lua), and it may require its own lib/
+			-- modules via './' or already-fetched packages via 'pkgs/<alias>/'
+			local dir = in_place and makac.resolve_pkg_dir(def, data_dir) or dest
+			makac.pkg_roots[#makac.pkg_roots + 1] = dir
+			for _, alias in ipairs(label_aliases[label] or {}) do
+				makac.pkg_dirs[alias] = dir
+			end
+
+			-- run the manifest: validate it and merge its fetchers so later
+			-- inputs in this run can name them (<alias>:<name>)
+			local exports = makac._read_pkg_manifest(label, dir)
+			if exports.fetchers ~= nil and type(exports.fetchers) ~= "table" then
+				error(("makac: fetch: input '%s': makac_package.lua 'fetchers' must be a table of name -> fetcher, got %s"):format(label, type(exports.fetchers)), 0)
+			end
+			for fname, ff in pairs(exports.fetchers or {}) do
+				if type(ff) ~= "function" and type(ff) ~= "table" then
+					error(("makac: fetch: input '%s': fetcher '%s' must be a function or a { fetch=..., key=... } table, got %s"):format(label, tostring(fname), type(ff)), 0)
+				end
+				if type(ff) == "table" then
+					if type(ff.fetch) ~= "function" then
+						error(("makac: fetch: input '%s': fetcher '%s': object must have a 'fetch' function"):format(label, tostring(fname)), 0)
+					end
+					if getmetatable(ff) == nil then
+						setmetatable(ff, {
+							__call = function(self, spec, dest) return self.fetch(spec, dest) end,
+						})
+					end
+				end
+				for _, alias in ipairs(label_aliases[label] or {}) do
+					makac.registry.fetchers[alias .. ":" .. tostring(fname)] = ff
+					makac._fetch_merged = makac._fetch_merged or {}
+					makac._fetch_merged[alias] = true
+				end
+			end
+
+			if not in_place then keep[dest:match("([^/]+)$")] = true end
+			done[label] = true
+			resolved = resolved + 1
+			remaining = remaining - 1
+			print(("fetched %s"):format(label))
+			::continue::
+		end
+		if remaining > 0 and resolved == 0 then
+			local waits = {}
+			for _, label in ipairs(labels) do
+				if not done[label] then
+					local def = inputs[label]
+					local what = type(def.fetcher) == "string"
+						and ("no registered fetcher named '" .. def.fetcher
+							.. "' (a package meant to provide it is not wired, failed to load, or this is a fetcher cycle)")
+						or "inline fetcher could not run"
+					waits[#waits + 1] = ("  - '%s': %s"):format(label, what)
+				end
+			end
+			error("makac: fetch: failed to make progress; remaining inputs cannot be fetched:\n" .. table.concat(waits, "\n"), 0)
+		end
+	end
+
+	-- prune: any .makac/packages/ entry this run did not produce is stale
+	local entries = makac.listdir(data_dir .. "/packages")
+	for _, e in ipairs(entries or {}) do
+		if e.is_dir and not keep[e.name] then
+			print(("pruning stale package '%s'"):format(e.name))
+			makac.fs.open_dir(data_dir .. "/packages"):remove(e.name)
+		end
+	end
+	return #labels
 end
 
 
--- ==== Packages: pkgs/ module loader + loading into the registries (design/packages.md) ====
+-- ==== Packages: module loaders + loading into the registries (design/packages.md) ====
 
--- Searcher for 'pkgs/<id>/<a>/<b>' module names: a loaded package's ./lib
+-- Searcher for 'pkgs/<alias>/<a>/<b>' module names: a loaded package's ./lib
 -- directory is the root (design/packages.md), so 'pkgs/foo/a/b' maps to
 -- <package root>/lib/a/b.lua ('/' separates, '.lua' is appended). The
 -- package root comes from makac.pkg_dirs (see makac.load_packages):
--- .makac/packages/<id> for fetched packages, the source path itself for
--- filesystem-fetcher packages (edits are live — no refetch step). Unknown package ids and missing files contribute the standard
--- 'module not found' require error (returning a string from a searcher
--- appends it to require's error).
+-- .makac/packages/<name> for fetched packages, the source path itself for
+-- filesystem-fetcher packages (edits are live — no refetch step). Unknown
+-- aliases and missing files contribute the standard 'module not found'
+-- require error (returning a string from a searcher appends it to require's
+-- error).
 local function pkgs_searcher(modname)
-	local id, rel = modname:match("^pkgs/([^/]+)/(.+)$")
-	if not id then
+	local alias, rel = modname:match("^pkgs/([^/]+)/(.+)$")
+	if not alias then
 		return nil -- not a pkgs/ module; defer to the other searchers
 	end
-	-- pkg_dirs maps each loaded package id to its code root (populated by
-	-- makac.load_packages BEFORE running each package's makac.lua, so a
-	-- package can require its own lib/ while loading).
-	local pkg_dir = makac.pkg_dirs and makac.pkg_dirs[id]
+	-- pkg_dirs maps each loaded package's alias to its code root (populated
+	-- by makac.load_packages BEFORE running each package's makac_package.lua,
+	-- so a package can require its own lib/ while loading).
+	local pkg_dir = makac.pkg_dirs and makac.pkg_dirs[alias]
 	if not pkg_dir then
-		return ("\n\tmakac: no loaded package '%s' (is it listed in packages.lua? 'makac run' / load_packages populates this)"):format(id)
+		return ("\n\tmakac: no loaded package wired under alias '%s' (wire it in makac_project.lua's 'packages' table; packages assert such needs up front with the manifest's 'requires')"):format(alias)
 	end
 	local path = pkg_dir .. "/lib/" .. rel .. ".lua"
-	local chunk = loadfile(path)
-	if not chunk then
+	local fh = io.open(path, "r")
+	if not fh then
 		return ("\n\tno file '%s'"):format(path)
+	end
+	fh:close()
+	-- the file exists: a loadfile failure here is a SYNTAX error -- surface
+	-- it, do not masquerade as 'not found'
+	local chunk, lerr = loadfile(path)
+	if not chunk then
+		return ("\n\tmakac: error loading '%s': %s"):format(path, tostring(lerr))
 	end
 	return chunk
 end
-table.insert(package.searchers, pkgs_searcher)
+table.insert(package.searchers, 1, pkgs_searcher)
 
--- makac.pkg_dirs[id] = the package's code root on disk (used by the pkgs/
+-- makac.pkg_dirs[alias] = the package's code root on disk (used by the pkgs/
 -- module searcher). Populated by makac.load_packages: into
--- .makac/packages/<id>/ for fetched packages; the source path itself for
+-- .makac/packages/<name>/ for fetched packages; the source path itself for
 -- packages with the 'filesystem' fetcher (load-in-place development).
 makac.pkg_dirs = makac.pkg_dirs or {}
 
--- Load every package listed in <data_dir>/packages.lua, IN FILE ORDER (the
--- list is authoritative: earlier packages may provide fetchers/actions that
--- later ones build on). For each entry the code root is resolved via
--- makac.resolve_pkg_dir: fetched packages come from
--- <data_dir>/packages/<id>/ (a listed-but-not-fetched package is a clear
--- error — run 'makac fetch'), while 'filesystem'-fetcher packages load in
--- place from with.path (no fetch step needed; the path must exist).
+-- The code roots of all loaded/wired packages, for the './' searcher.
+-- Populated alongside makac.pkg_dirs.
+makac.pkg_roots = makac.pkg_roots or {}
+
+-- Searcher for './<a>/<b>' module names: a package-rooted relative import.
+-- The module is resolved against the CALLING file's own package — the
+-- package whose directory contains the file doing the require — so a
+-- package's internal wiring ('require("./img")' -> <own root>/lib/img.lua)
+-- never depends on the alias a consumer wired for it. A './' import from
+-- outside any package (workflows, the project file) is a hard error.
+local function rel_searcher(modname)
+	local rel = modname:match("^%./(.+)$")
+	if not rel then
+		return nil -- not a relative import; defer to the other searchers
+	end
+	-- find the calling file (the chunk that called require): level 1 is this
+	-- searcher, 2 is require (a C function), 3 is the caller
+	local src = debug.getinfo(3, "S").source
+	local caller = type(src) == "string" and src:match("^@(.+)$") or nil
+	if not caller then
+		return "\n\tmakac: './' relative imports are only available from files inside a package"
+	end
+	-- the caller's package is the known code root containing its file; on an
+	-- ambiguous (nested) match the LONGEST root wins. A './' import from
+	-- outside any package (a workflow, the project file) is a hard error:
+	-- './' means package-relative and has no meaning there.
+	local best
+	for _, root in ipairs(makac.pkg_roots or {}) do
+		if caller:sub(1, #root + 1) == root .. "/" then
+			if not best or #root > #best then best = root end
+		end
+	end
+	if not best then
+		error(("makac: './' relative import '%s' from '%s', which is not inside any loaded package ('./' is for a package's own lib/ modules; use 'pkgs/<alias>/...' to reach another package)"):format(modname, caller), 0)
+	end
+	local path = best .. "/lib/" .. rel .. ".lua"
+	local fh = io.open(path, "r")
+	if not fh then
+		return ("\n\tno file '%s'"):format(path)
+	end
+	fh:close()
+	local chunk, lerr = loadfile(path)
+	if not chunk then
+		return ("\n\tmakac: error loading '%s': %s"):format(path, tostring(lerr))
+	end
+	return chunk
+end
+table.insert(package.searchers, 1, rel_searcher)
+
+-- Load (run) a package's makac_package.lua and return its exports table.
+-- `key` is the input key (canonical name), used in error messages.
+function makac._read_pkg_manifest(key, dir)
+	local mpath = dir .. "/makac_package.lua"
+	local chunk, lerr = loadfile(mpath)
+	if not chunk then
+		error(("makac: package '%s': %s (a package must have a makac_package.lua at its root, see design/packages.md)"):format(key, tostring(lerr)), 0)
+	end
+	local ok, exports = pcall(chunk)
+	if not ok then
+		error(("makac: package '%s': makac_package.lua failed: %s"):format(key, tostring(exports)), 0)
+	end
+	if exports == nil then exports = {} end
+	if type(exports) ~= "table" then
+		error(("makac: package '%s': makac_package.lua must return a table of exports, got %s"):format(key, type(exports)), 0)
+	end
+	if exports.requires ~= nil then
+		if type(exports.requires) ~= "table" then
+			error(("makac: package '%s': manifest 'requires' must be a table of alias -> message, got %s"):format(key, type(exports.requires)), 0)
+		end
+		for req, msg in pairs(exports.requires) do
+			if not _valid_alias(req) then
+				error(("makac: package '%s': manifest 'requires' key %s must be an alias (a non-empty string without ':' or '/'), not a canonical name — the package names the aliases it expects the project to wire"):format(key, tostring(req)), 0)
+			end
+			if type(msg) ~= "string" then
+				error(("makac: package '%s': manifest 'requires' message for alias '%s' must be a string, got %s"):format(key, req, type(msg)), 0)
+			end
+		end
+	end
+	return exports
+end
+
+-- Validate one manifest export kind ('actions'/'fetchers') and merge it into
+-- its registry under '<alias>:<name>' keys. `pre` holds the registry keys
+-- that existed before this load run (built-ins, or whatever earlier loads
+-- contributed): only those may collide — aliases are unique across the
+-- project, so keys registered during THIS load run cannot.
+local function _merge_exports(alias, key, kind, exports, reg, pre)
+	if exports[kind] ~= nil and type(exports[kind]) ~= "table" then
+		error(("makac.load_packages: package '%s' (alias '%s'): exports.%s must be a table of name -> function/fetcher-object, got %s"):format(key, alias, kind, type(exports[kind])), 0)
+	end
+	for name, fn in pairs(exports[kind] or {}) do
+		-- actions are functions; fetchers are functions OR objects
+		-- { fetch = fn, key = fn|string }. A fetcher usable for inputs must
+		-- provide 'key' (checked when it is actually used in an input).
+		local okv = type(fn) == "function"
+			or (kind == "fetchers" and type(fn) == "table" and type(fn.fetch) == "function")
+		if not okv then
+			error(("makac.load_packages: package '%s' (alias '%s'): %s '%s' must be a %s, got %s"):format(key, alias, kind, tostring(name), kind == "fetchers" and "function or { fetch=..., key=... } table" or "function", type(fn)), 0)
+		end
+		-- fetcher objects are workflow-callable too (object(spec, dest))
+		if type(fn) == "table" and getmetatable(fn) == nil then
+			setmetatable(fn, {
+				__call = function(self, spec, dest) return self.fetch(spec, dest) end,
+			})
+		end
+		local full = alias .. ":" .. tostring(name)
+		if pre[full] then
+			error(("makac.load_packages: package '%s' (alias '%s'): name '%s' collides with an existing action/fetcher"):format(key, alias, full), 0)
+		end
+		reg[full] = fn
+	end
+end
+
+-- The `requires` check as data: every alias named in a loaded manifest's
+-- `requires` that the project does not wire. Returns an array of findings
+--   { alias, label, req, msg, kind = "label" | "unwired", message, summary, advice }
+-- where `message` is load_packages' full hard error and `summary`/`advice`
+-- are the doctor-shaped, one-line form. `inputs` is the project's input table,
+-- used to tell an input LABEL from an unknown alias. Pure read: never raises.
 --
--- Each package's makac.lua runs in this VM and its exports merge into
--- makac's registries: `fetchers` and `actions` tables of name -> function,
--- each under the full key '<id>:<name>'. makac.pkg_dirs[<id>] is set BEFORE
--- makac.lua runs, so a package can require("pkgs/<own id>/...") its own
--- lib/ while loading. Missing makac.lua, non-function exports and name
--- collisions (checked against BOTH registries and any already-loaded
--- package) are errors naming the package. No packages.lua means no packages
--- — NOT an error (returns 0). Returns the number of packages loaded.
+-- Two shapes because the callers differ: `makac run` fails fast on the first
+-- miss (one precise error), while `makac doctor` reports every miss (one line
+-- per dependency) — so the findings are computed before either decides.
+local function _requires_findings(loaded, inputs)
+	local findings = {}
+	if type(loaded) ~= "table" then return findings end
+	local aliases = {}
+	for alias in pairs(loaded) do aliases[#aliases + 1] = alias end
+	table.sort(aliases)
+	for _, alias in ipairs(aliases) do
+		local entry = loaded[alias]
+		local requires = entry.exports and entry.exports.requires
+		local reqs = {}
+		for req in pairs(requires or {}) do reqs[#reqs + 1] = req end
+		table.sort(reqs)
+		for _, req in ipairs(reqs) do
+			if loaded[req] == nil then
+				local msg = tostring(requires[req])
+				local f = { alias = alias, label = entry.label, req = req, msg = msg }
+				if inputs ~= nil and inputs[req] ~= nil then
+					f.kind = "label"
+					f.message = ("makac: package '%s' (alias '%s') requires '%s', which is an INPUT LABEL, not an alias\n  %s: %s\n  -> wire an alias for input '%s' in makac_project.lua's 'packages' table and require that alias (requires names aliases, not inputs)"):format(entry.label, alias, req, req, msg, req)
+					f.summary = ("requires '%s', which is an INPUT LABEL, not an alias"):format(req)
+					f.advice = {
+						("%s: %s"):format(req, msg),
+						("wire an alias for input '%s' in makac_project.lua's 'packages' table and require that alias"):format(req),
+					}
+				else
+					f.kind = "unwired"
+					f.message = ("makac: package '%s' (alias '%s') requires '%s', which is not wired\n  %s: %s\n  -> add an input for it and wire an alias in makac_project.lua's 'packages' table"):format(entry.label, alias, req, req, msg)
+					f.summary = ("requires '%s', which is not wired"):format(req)
+					f.advice = {
+						("%s: %s"):format(req, msg),
+						"add an input for it and wire an alias in makac_project.lua's 'packages' table",
+					}
+				end
+				findings[#findings + 1] = f
+			end
+		end
+	end
+	return findings
+end
+
+-- Load every package wired in <project root>/makac_project.lua's 'packages'
+-- table, mirroring the fetch worklist MINUS the fetching: a label resolves
+-- when its fetcher is registered (built-ins, inline objects, or provided by a
+-- package whose manifest already ran this load). Each round first registers
+-- the code root of every currently-resolvable pending label — only then do
+-- their manifests run — so projects whose inputs all use built-in fetchers
+-- get "every directory registered before any manifest runs" (manifest-load
+-- cross-package requires stay order-free). For stored inputs the directory IS
+-- the content key: its absence means the input was never fetched (or its
+-- arguments changed since — either way: 'run makac fetch'). In-place
+-- ('filesystem') inputs resolve live from with.path.
+--
+-- Each package's makac_package.lua runs in this VM and its exports merge into
+-- makac's registries under '<alias>:<name>'. After all manifests have run,
+-- every alias named in any manifest's `requires` must exist in the project's
+-- 'packages' table — a flat membership check; a miss is a hard error printing
+-- the package author's own message for that dependency. No project file means
+-- no packages — NOT an error (returns 0). Calling load_packages again after
+-- the CLI already did is idempotent (already-loaded aliases are skipped).
+-- Returns the number of wired packages.
 function makac.load_packages(data_dir)
 	data_dir = data_dir or makac.data_dir
 	if type(data_dir) ~= "string" or data_dir == "" then
 		error("makac.load_packages: no data directory (makac.data_dir is unset)", 0)
 	end
-	local defs_file = io.open(data_dir .. "/packages.lua", "r")
-	if not defs_file then return 0 end -- no package list: nothing to load
+	local defs_file = io.open(makac.project_file_path(data_dir), "r")
+	if not defs_file then return 0 end -- no project file: nothing to load
 	defs_file:close()
-	local defs = makac.read_package_defs(data_dir) -- validates, file order
+	local inputs, aliases = makac.read_project_file(data_dir) -- validates
 
-	for _, def in ipairs(defs) do
-		local id = def.id
-		local dir = makac.resolve_pkg_dir(def, data_dir)
-		if not makac.listdir(dir) then
-			if def.fetcher == "filesystem" then
-				error(("makac.load_packages: package '%s': filesystem path '%s' does not exist or is not a directory"):format(id, dir), 0)
-			end
-			error(("makac.load_packages: package '%s' is listed in packages.lua but nothing exists at '%s' -- run 'makac fetch' first"):format(id, dir), 0)
-		end
-		-- register the code root first: the package's own makac.lua may
-		-- require its lib/ modules while loading
-		makac.pkg_dirs[id] = dir
+	local label_aliases = {} -- label -> wired aliases
+	for _, a in ipairs(aliases) do
+		label_aliases[a.label] = label_aliases[a.label] or {}
+		label_aliases[a.label][#label_aliases[a.label] + 1] = a.alias
+	end
 
-		local mpath = dir .. "/makac.lua"
-		local chunk, lerr = loadfile(mpath)
-		if not chunk then
-			error(("makac.load_packages: package '%s': %s (a package must have a makac.lua at its root, see design/packages.md)"):format(id, tostring(lerr)), 0)
-		end
-		local ok, exports = pcall(chunk)
-		if not ok then
-			error(("makac.load_packages: package '%s': makac.lua failed: %s"):format(id, tostring(exports)), 0)
-		end
-		if exports == nil then exports = {} end
-		if type(exports) ~= "table" then
-			error(("makac.load_packages: package '%s': makac.lua must return a table of exports, got %s"):format(id, type(exports)), 0)
-		end
-		for kind, reg in pairs({ actions = makac.registry.actions, fetchers = makac.registry.fetchers }) do
-			if exports[kind] ~= nil and type(exports[kind]) ~= "table" then
-				error(("makac.load_packages: package '%s': exports.%s must be a table of name -> function, got %s"):format(id, kind, type(exports[kind])), 0)
-			end
-			for name, fn in pairs(exports[kind] or {}) do
-				if type(fn) ~= "function" then
-					error(("makac.load_packages: package '%s': %s '%s' must be a function, got %s"):format(id, kind, tostring(name), type(fn)), 0)
-				end
-				local full = id .. ":" .. tostring(name)
-				-- the action and fetcher registries share one name space:
-				-- reject collisions against either (and against what other,
-				-- already-loaded packages contributed)
-				if makac.registry.actions[full] or makac.registry.fetchers[full] then
-					error(("makac.load_packages: package '%s': name '%s' collides with an existing action/fetcher"):format(id, full), 0)
-				end
-				reg[full] = fn
-			end
+	-- `pre` snapshots the registry keys present before loading: only those
+	-- may collide (aliases are unique, so keys registered during THIS run
+	-- cannot). Aliases an earlier load_packages call already ran are skipped.
+	local pre = {}
+	for k in pairs(makac.registry.actions) do pre[k] = true end
+	for k in pairs(makac.registry.fetchers) do pre[k] = true end
+	local prev = makac._pkg_info or {}
+
+	local loaded = {} -- alias -> { label = <label>, exports = <table> }
+	local pending = {} -- label -> true when none of its aliases are loaded yet
+	local pending_list = {}
+	for _, a in ipairs(aliases) do
+		if prev[a.alias] ~= nil then
+			loaded[a.alias] = prev[a.alias] -- already loaded by an earlier call
+		elseif not pending[a.label] then
+			pending[a.label] = true
+			pending_list[#pending_list + 1] = a.label
 		end
 	end
-	return #defs
+	table.sort(pending_list)
+
+	while #pending_list > 0 do
+		-- phase 1: resolve and REGISTER dirs for everything currently
+		-- resolvable (still without running any manifest)
+		local round, still = {}, {}
+		for _, label in ipairs(pending_list) do
+			local def = inputs[label]
+			local dir = makac.resolve_pkg_dir(def, data_dir) -- nil: fetcher unavailable yet
+			if dir == nil then
+				still[#still + 1] = label
+			else
+				if not makac.listdir(dir) then
+					if _is_in_place(def) then
+						error(("makac.load_packages: input '%s': filesystem path '%s' does not exist or is not a directory"):format(label, dir), 0)
+					end
+					error(("makac.load_packages: input '%s' is wired in makac_project.lua but nothing exists at '%s' (never fetched, or its arguments changed since the last fetch) -- run 'makac fetch' first"):format(label, dir), 0)
+				end
+				for _, alias in ipairs(label_aliases[label]) do
+					makac.pkg_dirs[alias] = dir
+				end
+				makac.pkg_roots[#makac.pkg_roots + 1] = dir
+				round[#round + 1] = label
+			end
+		end
+		if #round == 0 then
+			-- nothing resolvable and nothing that could unlock them (any
+			-- would-be provider is itself unresolvable): definitive stall
+			local waits = {}
+			for _, label in ipairs(still) do
+				local def = inputs[label]
+				local what = type(def.fetcher) == "string"
+					and ("no registered fetcher named '" .. def.fetcher .. "' (is the providing package wired and itself fetchable?)")
+					or "unresolvable inline fetcher"
+				waits[#waits + 1] = ("  - '%s': %s"):format(label, what)
+			end
+			error("makac.load_packages: cannot resolve the remaining inputs:\n" .. table.concat(waits, "\n"), 0)
+		end
+		-- phase 2: run this round's manifests (their dirs are all registered)
+		for _, label in ipairs(round) do
+			local dir = makac.pkg_dirs[label_aliases[label][1]]
+			local exports = makac._read_pkg_manifest(label, dir)
+			for _, alias in ipairs(label_aliases[label]) do
+				_merge_exports(alias, label, "actions", exports, makac.registry.actions, pre)
+				-- fetch_all already merged this alias's fetchers if it fetched
+				-- the package in THIS VM; merging again would collide
+				if not (makac._fetch_merged and makac._fetch_merged[alias]) then
+					_merge_exports(alias, label, "fetchers", exports, makac.registry.fetchers, pre)
+				end
+				loaded[alias] = { label = label, exports = exports }
+			end
+		end
+		pending_list = still
+	end
+
+	-- the requires check — flat membership against the alias table. Compute
+	-- every finding (doctor reports them all), then fail fast on the first:
+	-- run's contract is one clear error, doctor's is one line per miss.
+	makac._pkg_info = loaded
+	local findings = _requires_findings(loaded, inputs)
+	if #findings > 0 then
+		error(findings[1].message, 0)
+	end
+	return #aliases
+end
+
+-- Read-only description of a loaded package, keyed by alias — or nil when
+-- no package is wired under that alias. Never fetches, loads or registers
+-- anything; reflects what makac.load_packages already loaded. Probing for
+-- an optional package ('enhance if available') is legitimate; hard needs
+-- belong in the manifest's `requires`, where the check is automatic.
+function makac.package_info(alias)
+	assert(type(alias) == "string" and alias ~= "",
+		"makac.package_info: alias must be a non-empty string")
+	local loaded = makac._pkg_info
+	if type(loaded) ~= "table" or loaded[alias] == nil then return nil end
+	local entry = loaded[alias]
+	local function sorted_keys(t)
+		local out = {}
+		for k in pairs(t or {}) do out[#out + 1] = k end
+		table.sort(out)
+		return out
+	end
+	local requires = {}
+	for req, msg in pairs(entry.exports.requires or {}) do requires[req] = msg end
+	return {
+		alias = alias,
+		lib = "pkgs/" .. alias, -- logical require root, never an on-disk path
+		actions = sorted_keys(entry.exports.actions),
+		fetchers = sorted_keys(entry.exports.fetchers),
+		requires = requires,
+	}
 end
 
 
 -- ==== LuaLS stubs (design/luacats.md) ====
 
 -- Install/refresh what lua-language-server needs to see makac's Lua API:
---   <data_dir>/makac.lua   the base stub (embedded in the binary)
---   <data_dir>/pkgs/<id>   -> <package root>/lib, so that
---                          require("pkgs/<id>/<rel>") resolves to source
+--   <data_dir>/makac.lua      the base stub (embedded in the binary)
+--   <data_dir>/pkgs/<alias>   -> <package root>/lib, so that
+--                             require("pkgs/<alias>/<rel>") resolves to source
 -- and point the project's .luarc.json at the data dir as its single library
 -- root. Idempotent and best-effort: a failure warns on stderr, never fails the
 -- workflow (a broken install costs editor features, never a run).
@@ -1167,8 +1668,8 @@ function makac._luals_setup()
 	end
 	local ok, err = pcall(function()
 		-- One tree, under the data dir:
-		--   <data>/makac.lua       the stub (makac, step, ...)
-		--   <data>/pkgs/<id>  ->   <package>/lib    the require alias
+		--   <data>/makac.lua        the stub (makac, step, ...)
+		--   <data>/pkgs/<alias>  ->   <package>/lib    the require alias
 		-- and ONE library root, the data dir itself. The alias and the code it
 		-- points at are then under the SAME root, so LuaLS resolves the symlink
 		-- to a single file and indexes it once. (Two roots exposing the same
@@ -1189,21 +1690,21 @@ function makac._luals_setup()
 			end
 		end
 
-		-- alias targets come from the package DEFINITIONS, so this works
+		-- alias targets come from the project file's wiring, so this works
 		-- straight after `makac fetch` without loading (running) any package.
-		local okdefs, defs = pcall(makac.read_package_defs, data_dir)
-		if okdefs and type(defs) == "table" then
-			for _, def in ipairs(defs) do
-				local okdir, root = pcall(makac.resolve_pkg_dir, def, data_dir)
+		local okdefs, inputs, aliases = pcall(makac.read_project_file, data_dir)
+		if okdefs and type(inputs) == "table" then
+			for _, a in ipairs(aliases) do
+				local okdir, root = pcall(makac.resolve_pkg_dir, inputs[a.label], data_dir)
 				if okdir and type(root) == "string" and makac.fs.stat(root .. "/lib") ~= nil then
-					makac.fs.symlink(root .. "/lib", data_dir .. "/pkgs/" .. def.id)
+					makac.fs.symlink(root .. "/lib", data_dir .. "/pkgs/" .. a.alias)
 				end
 			end
 		end
 
 		-- .luarc.json: makac owns `workspace.library` and points it at the one
 		-- root, the data dir; every other key is preserved.
-		local root_dir = data_dir:match("^(.*)/[^/]+$") or "."
+		local root_dir = makac.project_root(data_dir)
 		local name = data_dir:match("([^/]+)$") or ".makac"
 		local entry = "./" .. name
 		local luarc = root_dir .. "/.luarc.json"
@@ -1310,7 +1811,7 @@ end
 -- makac._doctor(names): run the health checks, print the report to stdout, and
 -- return the number of error findings (the CLI exits non-zero when > 0, the
 -- runner never raises for a failing check). `names` is a space-separated list
--- of groups ("makac" or package ids); an empty/blank string means every group.
+-- of groups ("makac" or package aliases); an empty/blank string means every group.
 -- design/doctor.md.
 function makac._doctor(names)
 	local want, all = {}, true
@@ -1352,45 +1853,68 @@ function makac._doctor(names)
 	end
 
 	local dd = makac.data_dir
-	local okdefs, defs = pcall(makac.read_package_defs, dd)
-	if okdefs and type(defs) == "table" then
-		for _, def in ipairs(defs) do
-			local id = def.id
-			if all or want[id] then
-				run_group(id, function(health)
-					local okdir, dir = pcall(makac.resolve_pkg_dir, def, dd)
-					if not okdir or type(dir) ~= "string" then
-						health.error("cannot resolve the package directory: " .. tostring(dir))
-						return
-					end
-					if makac.fs.stat(dir) == nil then
-						health.error("package is not fetched", "run `makac fetch`")
-						return
-					end
-					-- so the check can require(pkg_name .. "/...") its own lib/
-					makac.pkg_dirs[id] = dir
-					local hpath = dir .. "/health.lua"
-					if makac.fs.stat(hpath) == nil then
-						health.info("no health checks implemented for this package.")
-						return
-					end
-					local chunk, lerr = loadfile(hpath)
-					if not chunk then
-						health.error("cannot load health.lua: " .. tostring(lerr))
-						return
-					end
-					local okc, check = pcall(chunk)
-					if not okc then
-						health.error("health.lua failed to load: " .. tostring(check))
-						return
-					end
-					if type(check) ~= "function" then
-						health.error("health.lua must return a function, got " .. type(check))
-						return
-					end
-					check(health, "pkgs/" .. id)
-				end)
-			end
+	-- no data directory (running outside a project) -> no package groups
+	local inputs, aliases = {}, {}
+	local req_by_alias = {} -- alias -> { unmet-requires finding, ... }
+	if type(dd) == "string" and dd ~= "" then
+		local okdefs, i, a = pcall(makac.read_project_file, dd)
+		if okdefs and type(i) == "table" then inputs, aliases = i, a end
+		-- best-effort load: on success it registers pkg_dirs (and the fetchers
+		-- of provider packages) so groups resolve; on an unmet `requires` it
+		-- sets _pkg_info and raises, so the findings below can still report
+		-- EVERY missing dependency rather than just the first one.
+		pcall(makac.load_packages, dd)
+		for _, f in ipairs(_requires_findings(makac._pkg_info, inputs)) do
+			req_by_alias[f.alias] = req_by_alias[f.alias] or {}
+			req_by_alias[f.alias][#req_by_alias[f.alias] + 1] = f
+		end
+	end
+	for _, a in ipairs(aliases) do
+		local def = inputs[a.label]
+		if all or want[a.alias] then
+			run_group(a.alias, function(health)
+				-- the manifest's declared needs: one line per missing dependency,
+				-- with the author's own message (design/doctor.md)
+				for _, f in ipairs(req_by_alias[a.alias] or {}) do
+					health.error(f.summary, f.advice)
+				end
+				local dir = makac.pkg_dirs[a.alias]
+				if dir == nil then
+					local okdir, res = pcall(makac.resolve_pkg_dir, def, dd)
+					if okdir and type(res) == "string" then dir = res end
+				end
+				if type(dir) ~= "string" then
+					health.error("cannot resolve the package directory: " .. tostring(dir))
+					return
+				end
+				if makac.fs.stat(dir) == nil then
+					health.error("package is not fetched", "run `makac fetch`")
+					return
+				end
+				-- so the check can require(pkg_name .. "/...") its own lib/
+				makac.pkg_dirs[a.alias] = dir
+				makac.pkg_roots[#makac.pkg_roots + 1] = dir
+				local hpath = dir .. "/health.lua"
+				if makac.fs.stat(hpath) == nil then
+					health.info("no health checks implemented for this package.")
+					return
+				end
+				local chunk, lerr = loadfile(hpath)
+				if not chunk then
+					health.error("cannot load health.lua: " .. tostring(lerr))
+					return
+				end
+				local okc, check = pcall(chunk)
+				if not okc then
+					health.error("health.lua failed to load: " .. tostring(check))
+					return
+				end
+				if type(check) ~= "function" then
+					health.error("health.lua must return a function, got " .. type(check))
+					return
+				end
+				check(health, "pkgs/" .. a.alias)
+			end)
 		end
 	end
 

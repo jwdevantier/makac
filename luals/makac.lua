@@ -177,8 +177,10 @@ function Dir:remove(sub) end
 ---@field _luals_stub string
 ---@field _luals_setup fun()
 ---@field load_packages fun(data_dir?: string): integer
+---@field sha256 fun(s: string): string
 ---@field fetch_all fun(data_dir?: string): integer
----@field read_package_defs fun(data_dir?: string): table[]
+---@field read_project_file fun(data_dir?: string): table, table[], string[]
+---@field package_info fun(alias: string): table|nil
 ---@field resolve_pkg_dir fun(def: table, data_dir?: string): string
 ---@field run_action fun(name: string, args: any): StepResult
 ---@field close_all_targets fun()

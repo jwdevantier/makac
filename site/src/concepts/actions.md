@@ -49,9 +49,9 @@ a step's caller can always rely on this shape:
 
 An action is referenced by name in a step's `uses`. Names without a `:` are the
 built-in actions. External actions come from packages and are referenced as
-`<package id>:<action name>` — the part before the `:` is the package id, the
-part after is the action name. A package id can therefore never contain `:`
-itself (see [Packages & the data directory](packages.md)).
+`<package alias>:<action name>` — the part before the `:` is the package alias,
+the part after is the action name. A package alias can therefore never contain
+`:` itself (see [Packages & the data directory](packages.md)).
 
 ## Built-in actions
 

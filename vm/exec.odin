@@ -11,14 +11,39 @@ import "core:time"
 
 import sp "../subprocess"
 
+import "core:crypto/hash"
+import "core:encoding/hex"
 import lua "vendor:lua/5.4"
 
 // Register the Odin-side primitives available to every VM as makac.*.
 register_builtins :: proc(v: ^VM) {
 	register(v, "exec", _makac_exec)
 	register(v, "download", _makac_download)
+	register(v, "sha256", _makac_sha256)
 	// NB: the flat `listdir` alias is registered by register_fs_primitives
 	// (fs.odin), which owns the entry point now.
+}
+
+// _makac_sha256 backs makac.sha256(s): the lowercase SHA256 hex digest of the
+// given string. Used by the prelude to derive fixed-length, safe-charset
+// storage keys for fetched packages (content-addressed .makac/packages/
+// entries, see design/fetchers.md).
+_makac_sha256 :: proc "c" (L: ^lua.State) -> c.int {
+	context = runtime.default_context()
+	// length-aware: Lua strings may contain NULs (the prelude uses "\0"
+	// separators in storage-key material — a cstring would truncate there)
+	lua.L_checktype(L, 1, c.int(lua.Type.STRING))
+	slen: c.size_t
+	sptr := lua.tolstring(L, 1, &slen)
+	s := string((transmute([^]u8)sptr)[:int(slen)])
+	raw := hash.hash_string(.SHA256, s, context.temp_allocator)
+	enc, herr := hex.encode(raw, context.temp_allocator)
+	if herr != nil {
+		lua.pushstring(L, "makac.sha256: out of memory")
+		return c.int(lua.error(L))
+	}
+	lua.pushstring(L, cstring(raw_data(enc)))
+	return 1
 }
 
 Exec_Result :: struct {

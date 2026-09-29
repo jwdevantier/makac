@@ -66,7 +66,7 @@ new :: proc(data_dir: string = "") -> ^VM {
 	// the embedded LuaCATS stub, read back by makac._luals_setup (design/luacats.md)
 	expose_luals_stub(v)
 	// expose the data directory as makac.data_dir (Lua helpers like
-	// fetch_all/read_package_defs default to it); may be the empty string
+	// fetch_all/read_project_file default to it); may be the empty string
 	lua.getglobal(state, "makac")
 	lua.pushlstring(state, cstring(raw_data(v.data_dir)), c.size_t(len(v.data_dir)))
 	lua.setfield(state, -2, "data_dir")

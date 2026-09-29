@@ -18,8 +18,8 @@ same three operations: run a command, put files onto it, get files from it.
 Host information gathered by the built-in `facts` action (e.g. OS and
 architecture) is captured in **facts**, which workflows can use to decide what to
 do next. Finally, external actions are brought in as **packages**, declared in
-`.makac/packages.lua` and fetched explicitly with `makac fetch`; the package id
-becomes the `uses` prefix, e.g. `qemu:vm`.
+`makac_project.lua` and fetched explicitly with `makac fetch`; the wired package
+alias becomes the `uses` prefix, e.g. `qemu:vm`.
 
 ## The pages
 
@@ -30,7 +30,7 @@ becomes the `uses` prefix, e.g. `qemu:vm`.
 | [Actions](actions.md) | What an action is, the result shape every action returns, and the built-in actions. |
 | [Targets](targets.md) | The host/remote abstraction: `run`, `put`, `get`, naming, and lifecycle. |
 | [Facts](facts.md) | Gathering host information with the `facts` action and fact finders. |
-| [Packages & the data directory](packages.md) | External actions via `.makac/packages.lua`, fetchers, and how makac locates the data directory. |
+| [Packages & the data directory](packages.md) | External actions via `makac_project.lua`, fetchers, and how makac locates the data directory. |
 
 ## A minimal workflow using most of the model
 

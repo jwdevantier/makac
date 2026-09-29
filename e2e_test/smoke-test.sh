@@ -20,8 +20,13 @@ fi
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
-# `init` creates <work>/.makac and installs the LuaLS stubs (best effort).
+# `init` creates <work>/.makac and, beside it, makac_project.lua (plus the
+# LuaLS stubs, best effort).
 "$bin" init "$work" >/dev/null
+[ -f "$work/makac_project.lua" ] || {
+  echo "smoke-test: init did not create makac_project.lua" >&2
+  exit 1
+}
 
 cat > "$work/hello.lua" <<'LUA'
 step {

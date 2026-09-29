@@ -16,8 +16,24 @@ makac doctor qemu          # only the qemu package's group
 makac doctor makac qemu    # the base group and the qemu group
 ```
 
-Group names are `makac` (makac's own checks) and the package ids from
-`.makac/packages.lua`.
+Group names are `makac` (makac's own checks) and the package aliases from
+`makac_project.lua`.
+
+## Dependency check
+
+Every alias a package declares in its manifest's `requires` must be wired in
+`makac_project.lua`. Doctor reports each **missing** one as an `ERROR` in that
+package's group — so the command exits non-zero — quoting the package author's
+own message:
+
+```text
+== main ==  1 error
+  - ERROR requires 'qemu', which is not wired
+    - ADVICE: qemu: QMP client library — get https://github.com/jwdevantier/makac.qmp
+    - ADVICE: add an input for it and wire an alias in makac_project.lua's 'packages' table
+```
+
+`makac run` stops at the first miss; doctor reports them all.
 
 ## Output
 
@@ -76,7 +92,7 @@ The file must return a function; doctor calls it with two arguments:
     failure; `advice` is a string or an array of strings;
   - `health.executable(bin)` — `OK` when `bin` is on `$PATH`, else `ERROR`
     (and returns a boolean).
-- **`pkg_name`** — the group's name: `"makac"` for the base group, `"pkgs/<id>"`
+- **`pkg_name`** — the group's name: `"makac"` for the base group, `"pkgs/<alias>"`
   for a package. Use it to reach the package's own code:
 
   ```lua
@@ -84,7 +100,7 @@ The file must return a function; doctor calls it with two arguments:
   ```
 
 The check file itself is loaded by doctor (via `loadfile`), not `require`d, and
-the package's `makac.lua` is **not** run — a check must be self-contained.
+the package's `makac_package.lua` is **not** run — a check must be self-contained.
 Doctor runs every check under `pcall`: a check that raises is reported as an
 error line, never a crash. A package with no `health.lua` reports a single
 `no health checks implemented for this package.` line.

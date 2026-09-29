@@ -42,7 +42,7 @@ Target operations (`run`/`put`/`get`/`close`) are documented on the
 | `makac.define_action(name, fn, opts)` | Registers action `name`; `fn(with)` returns a result table (normalized by `run_action`). `opts.default_name` is used by `step` when a step omits `name`. Redefining an action is an error. |
 | `makac.run_action(uses, with)` | Resolves `uses` in the registry, invokes it with `with`, normalizes and returns the result. Unknown actions raise; a raising action is wrapped with an error naming the action. |
 | `makac.normalize_result(res)` | Fills in the result defaults: `changed=false`, `skipped=false`, `out={}`. `err` is left as-is (absent unless set). |
-| `makac.register_fetcher(name, fn)` | Registers a fetcher for `packages.lua` entries (see [Fetchers](fetchers.md)). |
+| `makac.register_fetcher(name, fn)` | Registers a fetcher (see [Fetchers](fetchers.md)). |
 | `makac.register_fact_finder(name, fn)` | Registers a fact finder for the `facts` action (see [Built-in actions](actions.md)). |
 
 ### Package loading (used by the CLI, usable in workflows)
@@ -50,15 +50,19 @@ Target operations (`run`/`put`/`get`/`close`) are documented on the
 | Primitive | Description |
 | --- | --- |
 | `makac.data_dir` | The VM's data directory (may be the empty string for a data-dir-less VM). |
-| `makac.pkg_dirs` | Maps each loaded package id to its code root on disk. |
-| `makac.read_package_defs(data_dir?)` | Reads and validates `<data_dir>/packages.lua`, returning an array of entry tables. |
-| `makac.resolve_fetcher(def)` | Resolves an entry's `fetcher` to its function (string name → registry lookup; a function is used as-is). |
-| `makac.resolve_pkg_dir(def, data_dir?)` | Where an entry's code lives: `<data_dir>/packages/<id>/`, or `with.path` for a `filesystem` package. |
-| `makac.fetch_all(data_dir?)` | Fetches every listed package in file order into `<data_dir>/packages/<id>/`. |
-| `makac.load_packages(data_dir?)` | Loads every listed package's `makac.lua` into the registries under `<id>:<name>`; sets `pkg_dirs` before each loads. No `packages.lua` → returns 0. |
+| `makac.pkg_dirs` | Maps each wired package's alias to its code root on disk. |
+| `makac.sha256(s)` | Lowercase SHA256 hex digest of a (possibly NUL-containing) string; used by fetcher `key` methods. |
+| `makac.read_project_file(data_dir?)` | Reads and validates the project's `makac_project.lua` (beside the data directory), returning `inputs, aliases, labels`. |
+| `makac.resolve_fetcher(def)` | Resolves an entry's `fetcher` to its fetch callable (string name → registry lookup; an inline object contributes its `fetch`). |
+| `makac.resolve_pkg_dir(def, data_dir?)` | Where an input entry's code lives: `<data_dir>/packages/<storage key>/` recomputed from the entry (nil when the fetcher isn't registered yet — deferrable), or `with.path` for a `filesystem` package. |
+| `makac.fetch_all(data_dir?)` | Worklist-fetches every input into `<data_dir>/packages/<storage key>/`, merging each fetched package's `fetchers` for later inputs; prunes stale entries at the end. |
+| `makac.load_packages(data_dir?)` | Loads every wired package's `makac_package.lua` into the registries under `<alias>:<name>`, resolving aliases in a fetch-mirroring worklist (missing directories → "run makac fetch"), then checks every manifest's `requires` against the wired aliases. No `makac_project.lua` → returns 0. |
+| `makac.package_info(alias)` | Read-only description of a wired package (`{ alias, lib, actions, fetchers, requires }`) or `nil`; never fetches or loads anything. |
 
-Package-provided `lib/` code is require-able as `require("pkgs/<id>/a/b")` via a
-searcher the prelude installs (maps to `<package root>/lib/a/b.lua`).
+Package-provided `lib/` code is require-able as `require("pkgs/<alias>/a/b")` via a
+searcher the prelude installs (maps to `<package root>/lib/a/b.lua`). Inside a
+package, `require("./a")` resolves `<own package root>/lib/a.lua` regardless of
+the alias a consumer wired (a `./` import outside any package is a hard error).
 
 ### Scoped cleanup
 
@@ -195,8 +199,8 @@ lua-language-server at it. Whenever the data directory is created or refreshed
 
 - `<data_dir>/makac.lua` — LuaCATS definitions for `makac`, `step`, and the
   surface documented here;
-- `<data_dir>/pkgs/<id>` — one alias per package, so
-  `require("pkgs/<id>/...")` resolves to the package's `lib/`;
+- `<data_dir>/pkgs/<alias>` — one symlink per wired package, so
+  `require("pkgs/<alias>/...")` resolves to the package's `lib/`;
 - `.luarc.json` at the project root, whose `workspace.library` names the data
   directory as the single library root.
 

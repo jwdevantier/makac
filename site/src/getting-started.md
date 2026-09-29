@@ -93,20 +93,25 @@ failed step never goes unnoticed. Output of the workflow itself stays on **stdou
 ### 4. Fetch packages
 
 makac does not resolve dependencies on its own. Packages are declared in
-`.makac/packages.lua` inside the data directory, and fetched explicitly with
-`makac fetch`:
+`makac_project.lua` in the project root, beside the `.makac` data directory,
+and fetched explicitly with `makac fetch`:
 
 ```lua
--- .makac/packages.lua
+-- makac_project.lua
 return {
-    {
-        id = "qemu",             -- referenced as 'qemu:<action>' in workflows
-        fetcher = "fetchgit",    -- built-ins: fetchurl, fetchgit, filesystem
-        with = {
-            url = "https://github.com/jwdevantier/makac.qemu.git",
-            rev = "main",
+    inputs = {
+        -- the key is a local label for the fetch instruction
+        qemu = {
+            fetcher = "fetchgit",    -- built-ins: fetchurl, fetchgit, filesystem
+            with = {
+                url = "https://github.com/jwdevantier/makac.qemu.git",
+                rev = "main",
+            },
         },
     },
+    -- wire an alias to an input label; the alias is what workflows use:
+    -- 'qemu:<action>' in a step's uses field, require("pkgs/qemu/...") in Lua
+    packages = { qemu = "qemu" },
 }
 ```
 
@@ -114,9 +119,11 @@ return {
 makac fetch
 ```
 
-The file must be a Lua file that returns an array of package entries. Each entry has an
-`id` (used to reference the package's actions, e.g. `qemu:vm`), a `fetcher` (a built-in
-fetcher name, or a function), and an optional `with` table of fetcher arguments. Fetching
+The file must be a Lua file that returns a table with two keys: `inputs` maps a
+local label to its fetch entry (`fetcher` — a string naming a fetcher (built-ins
+or package-provided), or an inline `{ fetch = fn, key = ... }` object — plus an
+optional `with` table of fetcher arguments), and
+`packages` wires an alias to an input label. Fetching
 is always explicit — `makac run` never fetches automatically, so you control exactly when
 dependencies are updated. See [Fetchers](reference/fetchers.md) for the details.
 

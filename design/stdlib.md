@@ -26,6 +26,7 @@ Taste rules for what gets in:
 | `makac.fs` — paths (`path` type) | **done** | third userdata metatable `makac.path`; coercion pass: every fs function takes string-or-path via `check_path_string`; mktemp_*/null_file return paths |
 | `makac.fs` — directory handles (`Dir`) | **done** | the `walk` iterator is an eager depth-first snapshot, so mid-loop tree mutation is safe; sub guard rejects absolute/`..` |
 | `makac.fs` — directories, files, temp, hashing | done | thin `core:os` wrappers; `write_file{atomic}` is temp+rename; `sha256` streams via `core:crypto/hash` (`hash_file_by_name`, `load_at_once = false`) like the downloader's `hash_file`; flat `makac.listdir` EXISTS, moved to `makac.fs.listdir` with the flat name kept as alias |
+| `makac.sha256` — string hashing | **done** | length-aware `core:crypto/hash`; the flat string counterpart to `makac.fs.sha256`, behind fetcher `key` methods (NUL separators stay significant) |
 | `makac.env` (`all`, `version`, `makac_path`) | **done** | `core:os.environ` split at first `=`; `version` reads the compile-time constants in `vm/version.odin`, same pair as `makac --version`; `makac_path` is `os.get_executable_path` (`/proc/self/exe`) as a path |
 | `makac.time` (`sleep`, `now`, `ns_per_*`) | **done** | `clock_gettime`/`nanosleep` plumbing |
 | `makac.json` (`dumps`, `loads`) | **done** | converters already written: hoist `_lua_to_json`/`_push_json` out of `vm/qmp.odin`, register two functions |
@@ -268,7 +269,7 @@ makac.fs.symlink(target, link)           -- create/replace a symlink at `link`
   `images.md`; anywhere a transfer is staged.
 * **`symlink`** — create/replace a link: any existing entry at `link` is
   removed first (a non-empty directory makes `remove` fail, so real content
-  is never clobbered). Added for the LuaLS alias tree — `<data>/pkgs/<id>` ->
+  is never clobbered). Added for the LuaLS alias tree — `<data>/pkgs/<alias>` ->
   `<code>/lib` (design/luacats.md). *Caller*: `makac._luals_setup`.
 
 ## `makac.fs` — hashing *(status: done)*
@@ -283,6 +284,23 @@ result. Returns `nil, err` for a missing/unreadable file: to a manifest,
 "input file gone" is data (the stage rebuilds), not an exception. The
 downloader already has `file_matches_sha256` to draw on. *Caller*:
 `images.md` manifests.
+
+## `makac.sha256` — string hashing *(status: done)*
+
+```lua
+makac.sha256(s) -> hex_string
+```
+
+The lowercase SHA256 hex digest of a Lua string — the flat counterpart to
+`makac.fs.sha256`, which exists for *files* (and deliberately not for
+strings, so a stray call cannot slurp a gigabyte image). The implementation
+is length-aware (`lua.tolstring` plus explicit length), so NUL bytes are
+significant: the prelude composes key material such as `fetchgit` + url +
+rev joined by `\0` separators, and a `cstring` would truncate at the first
+NUL. This is the primitive behind any fetcher `key` that derives its
+storage key from a hash. *Callers*: the built-in
+`fetchurl`/`fetchgit` key functions (`design/fetchers.md`), the example in
+`design/packages.md`.
 
 ## `makac.json` *(status: done)*
 

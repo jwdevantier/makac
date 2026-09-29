@@ -10,3 +10,11 @@ When the `makac` tool is invoked, we look for the data directory like so:
   * (we automatically create the `.makac` data directory folder, if we can determine where it should be)
 * Iff we encounter neither and reach the top-level/root directory, error out, telling the user that we could not determine the root of their project and that THEY must initialize the makac data directory (see design/cli.md)
 
+The data directory holds only fetched and generated state (fetched packages, caches,
+per-target working state, generated LuaLS stubs), so it can be gitignored wholesale.
+The one project file associated with it — `makac_project.lua` — lives
+BESIDE the data directory in the project root, not inside it (see design/packages.md).
+Whenever makac creates the data directory — explicitly via `makac init`, or automatically
+when it finds a `.git` root — it also creates the project file beside it (an empty wiring),
+so the project is immediately ready to declare packages.
+

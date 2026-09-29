@@ -11,7 +11,7 @@ usage: makac [--version] <command> [args]
 commands:
   init <path>       initialize a .makac data directory
   run <workflow>    run a workflow file
-  fetch             fetch packages listed in .makac/packages.lua
+  fetch             fetch packages listed in makac_project.lua
   doctor [name...]  report the health of makac and its packages
 
 flags:
@@ -30,8 +30,11 @@ $ makac init myproject
 makac: initialized data directory at myproject
 ```
 
-Creating an already-existing data directory is not an error. `init` is how you
-set up a project when makac cannot find a project root on its own (see
+Creating an already-existing data directory is not an error. `init` also creates
+an empty `makac_project.lua` beside the data directory (unless one already
+exists), so the project is ready to declare packages — see
+[Packages & the data directory](../concepts/packages.md). `init` is how you set
+up a project when makac cannot find a project root on its own (see
 [The data directory](../concepts/packages.md)).
 
 ## `makac run <workflow>`
@@ -44,11 +47,14 @@ the full Lua 5.4 standard library plus the `makac.*` primitives and DSL (see
 makac run my_workflow.lua
 ```
 
-Before the workflow itself runs, makac loads every package listed in
-`.makac/packages.lua` (in file order), merging their actions and fetchers into
-the registries under their `<id>:` prefix and making their `lib/` require-able
-via `require("pkgs/<id>/...")`. A listed-but-not-fetched package aborts the run
-with an error telling you to run `makac fetch` first. No package list means no
+Before the workflow itself runs, makac loads every package wired in
+`makac_project.lua`'s `packages` table, merging their actions and fetchers into
+the registries under their `<alias>:` prefix and making their `lib/` require-able
+via `require("pkgs/<alias>/...")` (a package reaches its own modules with the
+package-rooted `require("./...")`). Each manifest's `requires` is checked against
+the wired aliases; an unwired requirement aborts the run with the package
+author's own message. A wired-but-not-fetched package aborts the run
+with an error telling you to run `makac fetch` first. No project file means no
 packages — silently.
 
 When the workflow finishes — successfully **or** by failing — makac closes every
@@ -56,27 +62,28 @@ target the workflow used, then exits.
 
 ## `makac fetch`
 
-Fetches every package listed in `.makac/packages.lua` into
-`.makac/packages/<id>/`, in file order, using each entry's declared fetcher.
-Fetching is **never** automatic: you run `makac fetch` yourself, whenever you
-add or change dependencies.
+Fetches every input listed in `makac_project.lua`, using each entry's declared
+fetcher. Inputs are processed as a worklist: an input is fetched as soon as its
+fetcher resolves, and fetched packages' fetchers immediately join the registry,
+so a package fetched in the run can provide the fetcher for a later input.
+Fetched code is stored content-addressed under `.makac/packages/<key>/`; at the
+end of the run makac prunes stale entries. Fetching is **never** automatic: you run
+`makac fetch` yourself, whenever you add or change dependencies.
 
 ```bash
 $ makac fetch
-defined packages (#1):
-  1. qemu (fetcher: fetchgit)
 fetching qemu via fetchgit...
 fetched qemu
 ```
 
-If no `packages.lua` exists yet, `makac fetch` is **not** an error — it prints
-where the file lives and an example entry, and exits 0:
+If no `makac_project.lua` exists yet, `makac fetch` is **not** an error — it prints
+where the file lives and an example, and exits 0:
 
 ```text
-makac: no packages.lua found.
+makac: no makac_project.lua found.
 
-The package list for this project lives at:
-  /path/to/project/.makac/packages.lua
+The project file for this project lives at:
+  /path/to/project/makac_project.lua
 ...
 ```
 
@@ -107,7 +114,7 @@ package author's contract is documented in makac's `design/doctor.md`); a
 package without one reports a single "no health checks implemented" line.
 
 `makac doctor [name...]` runs every group, or only the named ones (`makac`, or
-package ids). The exit status is non-zero iff any check reported an error —
+package aliases). The exit status is non-zero iff any check reported an error —
 warnings do not fail. Base checks also run outside a project (package checks
 need a resolvable data directory).
 
@@ -130,7 +137,7 @@ available to workflows as `makac.env.version()` (see
 | Situation | Exit code |
 | --- | --- |
 | `makac --version` | 0 |
-| `makac fetch` with no `packages.lua` | 0 (informational) |
+| `makac fetch` with no `makac_project.lua` | 0 (informational) |
 | Successful `makac run` / `makac fetch` | 0 |
 | Unknown command, missing/extra arguments, unparseable flags | 1 (usage printed to stderr) |
 | `makac run` workflow failure (a step failed, or the workflow raised) | 1 |

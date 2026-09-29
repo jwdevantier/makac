@@ -4,8 +4,8 @@
 # Fetchers
 
 A **fetcher** is a Lua function that knows how to bring a package into the
-project. Every entry in `.makac/packages.lua` names a fetcher (its `fetcher`
-key) and passes it arguments (its `with` table). Fetching happens only when you
+project. Every entry in `makac_project.lua`'s `inputs` names a fetcher (its
+`fetcher` key) and passes it arguments (its `with` table). Fetching happens only when you
 run `makac fetch` — never automatically during `makac run`.
 
 The [Concepts: Packages & the data directory](../concepts/packages.md) page
@@ -13,23 +13,32 @@ explains the package model; this page is the precise fetcher reference.
 
 ## The fetcher contract
 
-A fetcher is a function `fn(spec, dest_dir)`:
+A fetcher is an object with two methods:
 
-- `spec` is the **full** entry table from `packages.lua` (so the fetcher's
-  arguments live under `spec.with`, and it can read `spec.id` for error
-  messages).
-- `dest_dir` is where the package's code must end up:
-  `<data_dir>/packages/<id>/` for every fetcher except `filesystem`, which
-  uses the source path in place.
+- `key(with)` — a **pure** function hashing the semantically relevant `with`
+  fields into the storage key: fixed length, safe charset (`[A-Za-z0-9._-]`).
+  The output identifies *what is fetched*: "same key" must mean "same content".
+  Fields that cannot change the result (e.g. `fetchurl`'s unpacker choice —
+  post-processing of sha256-pinned bytes) must **not** participate. A literal
+  string is allowed for inline one-off fetchers.
+- `fetch(spec, dest)` — materialize the package at `dest` (a fresh path under
+  `<data_dir>/packages/<key>/`). `spec` is the **full** input entry (arguments
+  under `spec.with`, the input's label under `spec.label`).
 
-A fetcher that fails raises (or errors); `makac fetch` aborts the whole run on
-the first failure, with a message naming the package.
+A fetcher object is also *callable* (`fetcher(spec, dest)` dispatches to
+`.fetch`), so workflow-time use stays natural. A plain function fetcher (no
+`key`) cannot fetch inputs — an input using one errors clearly — but can still
+be called from workflows. In-place fetchers (`filesystem`) set `in_place = true`
+instead of defining `key`: nothing is stored and nothing is pruned.
+
+A fetcher that fails raises; `makac fetch` aborts the run on the first failure
+with a message naming the input.
 
 Fetchers are registered by name. The three built-ins are always available:
-`fetchurl`, `fetchgit`, `filesystem`. Packages may contribute more (exported as
-`fetchers` in their `makac.lua`); to use a package-provided fetcher, prefix it
-with the providing package's id: `mypkg:fetchcvs`. A fetcher name that does not
-resolve is an error naming the package and the unknown fetcher.
+`fetchurl`, `fetchgit`, `filesystem`. Packages contribute more via `fetchers` in
+their `makac_package.lua`, usable in the project file as `<alias>:<name>` (the
+fetch worklist retries inputs as new fetchers appear) and callable from
+workflows.
 
 ## `fetchurl`
 
@@ -98,7 +107,7 @@ Uses a package from the local filesystem **in place** — nothing is copied,
     fetcher = "filesystem",
     with = {
         -- required: path to the package's directory (must contain a
-        -- makac.lua at its root). Relative paths resolve against the
+        -- makac_package.lua at its root). Relative paths resolve against the
         -- project root (the directory holding the .makac data dir), so
         -- workflows work from any subdirectory. Absolute paths work too.
         path = "path/to/package",
@@ -107,26 +116,27 @@ Uses a package from the local filesystem **in place** — nothing is copied,
 ```
 
 "Fetching" only validates: the path must be an existing directory with a
-`makac.lua` at its root — a typo'd path is caught by `makac fetch`, not later
-at run time. Loading reads from the path itself.
+`makac_package.lua` at its root (whose `name` must equal the input key) — a
+typo'd path is caught by `makac fetch`, not later at run time. Loading reads
+from the path itself.
 
-## Fetching order and chaining
+## Fetching order: the worklist
 
-Entries in `packages.lua` are fetched in **file order**. The list is
-authoritative: an earlier package may provide a fetcher that a later entry
-uses (e.g. `mypkg:fetchcvs`). The built-in registry is prepopulated with
-`fetchurl`/`fetchgit`/`filesystem`; an unknown fetcher name is an error naming
-the package and the fetcher.
-
-> **Note:** fetcher *chaining within a single fetch run* — a package fetched
-> during `makac fetch` becoming usable as the fetcher for a *later* entry in
-> that same run — is not implemented yet. Packages are loaded (and their
-> fetchers registered) during `makac run`, so a package-provided fetcher is
-> available to fetch *other* packages on a subsequent `makac fetch` run.
+Inputs are processed as a worklist: each input is fetched as soon as its
+fetcher resolves in the registry. After every fetch the fetched package's
+manifest runs — validating it and merging its `fetchers` into the registry
+under every alias wired to that input. So a package fetched earlier in the
+run can provide the fetcher a later input names (`bar:svn`); the registry
+drives the order, there is no static dependency graph. A full pass without
+progress is a hard error listing, per remaining input, what it waits for —
+which is also how fetcher cycles surface.
 
 ## Where fetched code lives
 
-Every fetcher except `filesystem` puts the package's code at
-`<data_dir>/packages/<id>/`. A listed-but-not-fetched package is a run-time
-error at `makac run`, telling you to run `makac fetch` first. A `filesystem`
-package's code root is its `with.path` itself.
+Every fetcher except in-place ones puts the package's code at
+`<data_dir>/packages/<storage key>/` (content-addressed; the key comes from
+the fetcher's `key` method). At the end of a run `makac fetch` prunes any
+`packages/` entry no current input produced. Loading recomputes keys from the
+inputs: a wired-but-not-fetched package (directory missing — never fetched, or
+edited since) is a run-time error at `makac run`, telling you to run
+`makac fetch`. A `filesystem` package's code root is its `with.path` itself.

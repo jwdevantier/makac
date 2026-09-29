@@ -72,6 +72,12 @@ test_resolve_git_triggers_create :: proc(t: ^T) {
 	testing.expect_value(t, err, Error.None)
 	testing.expect_value(t, dir, join(base, "repo", ".makac"))
 	testing.expect(t, os.is_dir(join(base, "repo", ".makac")), ".makac must have been created")
+	// creating the data directory also creates its sibling project file
+	testing.expect(
+		t,
+		os.exists(join(base, "repo", "makac_project.lua")),
+		"makac_project.lua must have been created beside .makac",
+	)
 }
 
 // Reaching the filesystem root with neither `.makac` nor `.git` errors.
@@ -100,6 +106,7 @@ test_init_plain_path :: proc(t: ^T) {
 	target := join(base, "proj")
 	testing.expect_value(t, init(target), Error.None)
 	testing.expect(t, os.is_dir(join(target, ".makac")))
+	testing.expect(t, os.exists(join(target, "makac_project.lua")), "project file must be created")
 }
 
 // init with a path ending in `.makac` creates exactly that directory.
@@ -113,8 +120,14 @@ test_init_makac_suffix :: proc(t: ^T) {
 	target := join(base, "proj", ".makac")
 	testing.expect_value(t, init(target), Error.None)
 	testing.expect(t, os.is_dir(target))
+	testing.expect(
+		t,
+		os.exists(join(base, "proj", "makac_project.lua")),
+		"project file must be created next to (not inside) .makac",
+	)
 	// and must NOT have created a nested `.makac/.makac`
 	testing.expect(t, !os.is_dir(join(target, ".makac")))
+	testing.expect(t, !os.exists(join(target, "makac_project.lua")), "project file must not be inside .makac")
 }
 
 // init is idempotent: initializing an already-existing `.makac` succeeds.
@@ -127,6 +140,14 @@ test_init_idempotent :: proc(t: ^T) {
 
 	target := join(base, "proj")
 	testing.expect_value(t, init(target), Error.None)
+	list := join(target, "makac_project.lua")
+	testing.expect(t, os.exists(list), "project file must be created")
+	// re-initializing must not clobber an existing project file
+	custom := "return { -- custom\n}\n"
+	testing.expect(t, os.write_entire_file_from_string(list, custom) == nil)
 	testing.expect_value(t, init(target), Error.None)
 	testing.expect(t, os.is_dir(join(target, ".makac")))
+	got, rerr := os.read_entire_file_from_path(list, context.temp_allocator)
+	testing.expectf(t, rerr == nil, "read project file: %s", os.error_string(rerr))
+	testing.expectf(t, string(got) == custom, "existing project file must be preserved, got %q", string(got))
 }

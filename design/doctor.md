@@ -42,7 +42,7 @@ return function(health, pkg_name)
 end
 ```
 
-`pkg_name` is the group's name: `"makac"` for the base group, `"pkgs/<id>"`
+`pkg_name` is the group's name: `"makac"` for the base group, `"pkgs/<alias>"`
 for a package. A package uses it to reach its own code — the file lives at the
 package root, *outside* `lib/`, so it is not part of the package's require
 surface:
@@ -67,12 +67,12 @@ it.
 `makac doctor [name...]`:
 
 1. the **base group** `makac` first — checks built into the prelude;
-2. then each package from `packages.lua`, in file order, under its id.
+2. then each package wired in `makac_project.lua`'s `packages` table, sorted by alias.
 
 For each package, `makac.resolve_pkg_dir(def)` gives its root and
-`makac.pkg_dirs[id]` is set, so `require(pkg_name .. "/...")` resolves; then
+`makac.pkg_dirs[alias]` is set, so `require(pkg_name .. "/...")` resolves; then
 `<pkg-root>/health.lua` is `loadfile`d and its returned function is called with
-`(health, pkg_name)`. The package's `makac.lua` is **not** run — checks must be
+`(health, pkg_name)`. The package's `makac_package.lua` is **not** run — checks must be
 self-contained.
 
 A package with no `health.lua` reports one line:
@@ -85,7 +85,30 @@ Every check runs under `pcall`; a raised error is reported as an error line in
 its group (naming the package), never a crash.
 
 With no arguments, every group runs; with arguments, only the named ones
-(`makac`, or one or more package ids).
+(`makac`, or one or more package aliases).
+
+## Manifest `requires`
+
+After loading the packages, doctor re-runs the same `requires` check the
+loader enforces: every alias a manifest declares in `requires` must be wired
+in the project's `packages` table. Each **missing** dependency is one line in
+its package's group — an `ERROR`, so the command exits non-zero — carrying the
+author's own message and a wiring hint:
+
+```
+== main ==  2 errors
+  - ERROR requires 'dep', which is not wired
+    - ADVICE: dep: main calls dep:check; get it from https://example.invalid/dep
+    - ADVICE: add an input for it and wire an alias in makac_project.lua's 'packages' table
+  - ERROR requires 'other', which is not wired
+    - ADVICE: other: main also needs other
+    - ADVICE: add an input for it and wire an alias in makac_project.lua's 'packages' table
+```
+
+`makac run` stops at the first miss (one precise error, no partial run);
+doctor reports *every* miss, so a single pass shows the whole wiring gap. A
+`requires` key that names an input **label** rather than an alias gets the
+label-specific hint instead.
 
 ## Output
 

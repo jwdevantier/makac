@@ -51,5 +51,5 @@ See design/packages.md for details, but essentially, a project may depend on ext
 ## Remote actions
 Remote actions are fetched from elsewhere, see design/packages.md for details, but it involves declaring a list of packages to fetch - and how to fetch from them.
 
-Every package is given a unique name which is used later when identifying an action to take. References to external actions will take the form of `<package id>:<action name>`, where the part before the `:` is the package id and the part after is the action name. A package id can therefore not itself contain a `:` — a reference without one denotes a built-in action.
+Every package is given a unique alias which is used later when identifying an action to take. References to external actions will take the form of `<package alias>:<action name>`, where the part before the `:` is the package alias and the part after is the action name. A package alias can therefore not itself contain a `:` — a reference without one denotes a built-in action.
 

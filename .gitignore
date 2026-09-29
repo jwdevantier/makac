@@ -1,3 +1,4 @@
 makac
 makac-linux-*
 site/book/
+.makac/
