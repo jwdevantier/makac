@@ -330,6 +330,28 @@ test_parse_end_of_options_marker :: proc(t: ^T) {
 }
 
 @(test)
+test_parse_positional_args_verbatim :: proc(t: ^T) {
+	// Once parsing gives up at the first non-command word, everything from
+	// there on is positional and echoed back EXACTLY as written on the
+	// command line — flags keep their dashes, bundles stay bundled, and a
+	// '--' separator survives. This is what lets `makac <script> <args...>`
+	// forward argv to the Lua script untouched.
+	expect_parse(
+		t,
+		Parse_Case{
+			name = "positional args verbatim",
+			args = {"script.lua", "--flag", "-x", "-abc", "val", "--", "-q"},
+			ok = true,
+			err_kind = .None,
+			cmds = {"root"},
+			has_pos = true,
+			pos = {"script.lua", "--flag", "-x", "-abc", "val", "--", "-q"},
+		},
+		&root_spec,
+	)
+}
+
+@(test)
 test_parse_unknown_flag :: proc(t: ^T) {
 	expect_parse(
 		t,

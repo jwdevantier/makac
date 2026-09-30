@@ -4,7 +4,8 @@
 # Workflows
 
 A **workflow** is a Lua file that describes what makac should do. You run it with
-`makac run <workflow.lua>`; makac evaluates the file from line 1 onwards, top to
+`makac run <workflow.lua>` — or, since `run` is optional,
+`makac <workflow.lua>`; makac evaluates the file from line 1 onwards, top to
 bottom, and every `step { ... }` call executes **immediately**, at the moment it is
 evaluated.
 
@@ -50,11 +51,15 @@ check_guest(vm2)
 ## Workflow files
 
 There is no special file extension or directory convention — a workflow is any
-Lua file. A workflow can use `require` and local files, and packages fetched into
-the project can be loaded with `require("pkgs/<alias>/...")` (see
-[Packages](packages.md)). Because a workflow is evaluated
-once, top to bottom, later steps see the results (and targets) of earlier steps
-as plain Lua values — chaining is a natural consequence:
+Lua file. It can take command-line arguments (`makac run w.lua a b` exposes them
+as `arg[1]`, `arg[2]`, …, alongside `SCRIPT_DIR` and `PROJECT_DIR`) and it can be
+executable directly with a `#!/usr/bin/env makac` shebang; see
+[Running a workflow](../reference/cli.md#running-a-workflow). A workflow can use
+`require` and local files, and packages fetched into the project can be loaded
+with `require("pkgs/<alias>/...")` (see [Packages](packages.md)). Because a
+workflow is evaluated once, top to bottom, later steps see the results (and
+targets) of earlier steps as plain Lua values — chaining is a natural
+consequence:
 
 ```lua
 local boot = step {

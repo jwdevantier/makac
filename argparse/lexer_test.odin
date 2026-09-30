@@ -59,20 +59,22 @@ tokenize_cases :: [?]Tokenize_Case {
 	{
 		name = "long flag",
 		args = {"--flag"},
-		expected = {Token{kind = .Long_Flag, text = "flag"}},
+		expected = {Token{kind = .Long_Flag, text = "flag", verbatim = "--flag"}},
 		want_err_at = -1,
 	},
 	{
 		name = "short flag",
 		args = {"-f"},
-		expected = {Token{kind = .Short_Flag, text = "f"}},
+		expected = {Token{kind = .Short_Flag, text = "f", verbatim = "-f"}},
 		want_err_at = -1,
 	},
 	{
 		name = "bundled short",
 		args = {"-abc"},
+		// the bundle's first token carries the original arg verbatim;
+		// continuation tokens leave it "" (parse emits the bundle once)
 		expected = {
-			Token{kind = .Short_Flag, text = "a"},
+			Token{kind = .Short_Flag, text = "a", verbatim = "-abc"},
 			Token{kind = .Short_Flag, text = "b"},
 			Token{kind = .Short_Flag, text = "c"},
 		},
@@ -86,14 +88,22 @@ tokenize_cases :: [?]Tokenize_Case {
 	},
 	{name = "bare dash", args = {"-"}, expected = {}, want_err_at = 0},
 	{
+		name = "bundle with non-letter stays a word",
+		// "-n5" cannot be a flag bundle; keep it intact so it can pass
+		// through as a positional arg (e.g. to a Lua script)
+		args = {"-n5"},
+		expected = {Token{kind = .Word, text = "-n5"}},
+		want_err_at = -1,
+	},
+	{
 		name = "nested command",
 		args = {"-v", "--conf", "/tmp/conf", "build-img", "--force", "myimg"},
 		expected = {
-			Token{kind = .Short_Flag, text = "v"},
-			Token{kind = .Long_Flag, text = "conf"},
+			Token{kind = .Short_Flag, text = "v", verbatim = "-v"},
+			Token{kind = .Long_Flag, text = "conf", verbatim = "--conf"},
 			Token{kind = .Word, text = "/tmp/conf"},
 			Token{kind = .Word, text = "build-img"},
-			Token{kind = .Long_Flag, text = "force"},
+			Token{kind = .Long_Flag, text = "force", verbatim = "--force"},
 			Token{kind = .Word, text = "myimg"},
 		},
 		want_err_at = -1,

@@ -206,8 +206,24 @@ parse :: proc(
 				args := Parsed_Args {
 					value = make([dynamic]string, a),
 				}
+				// Parsing stops interpreting at the first word that is no
+				// subcommand: it and EVERYTHING after it is positional and
+				// must be echoed back with its original spelling (dashes
+				// intact), so callers can forward it untouched — e.g. mkac
+				// forwarding `foo.lua --flag -x` to the Lua script.
 				for tok in tokens[ndx:] {
-					append(&args.value, tok.text)
+					#partial switch tok.kind {
+					case .End_Of_Options:
+						append(&args.value, "--")
+					case .Short_Flag, .Long_Flag:
+						// bundle continuation tokens have empty verbatim; the
+						// bundle's first token already carried it in full.
+						if tok.verbatim != "" {
+							append(&args.value, tok.verbatim)
+						}
+					case:
+						append(&args.value, tok.text)
+					}
 				}
 				append(&res, args)
 				return

@@ -7,9 +7,10 @@ Workflows are evaluated in a **Lua 5.4** VM. Everything in the
 [Lua 5.4 standard library](https://www.lua.org/manual/5.4/#index) is available,
 plus two layers of makac-specific API:
 
-- [Makac API](makac-api.md) — the `makac.*` primitives baked into the VM
-  (implemented in Odin): `makac.exec`, `makac.fs.*`, `makac.time.*`,
-  `makac.env.*`, processes, downloads, JSON, and friends.
+- [Makac API](makac-api.md) — the API baked into the VM from Odin: the `makac.*`
+  primitives (`makac.exec`, `makac.fs.*`, `makac.time.*`, `makac.env.*`,
+  processes, downloads, JSON, …) and the script-context globals (`arg`,
+  `SCRIPT_DIR`, `PROJECT_DIR`).
 - [The workflow DSL](workflow-dsl.md) — the prelude-defined surface workflows are
   written against: `step`, targets, the registry helpers, and package loading.
 

@@ -11,12 +11,23 @@ import "./vm"
 
 USAGE ::
 `usage: makac [--version] <command> [args]
+       makac <workflow> [args...]
 
 commands:
-  init <path>       initialize a .makac data directory
-  run <workflow>    run a workflow file
-  fetch             fetch packages listed in makac_project.lua
-  doctor [name...]  report the health of makac and its packages
+  init <path>                  initialize a .makac data directory
+  run <workflow> [args...]     run a workflow file
+  fetch                        fetch packages listed in makac_project.lua
+  doctor [name...]             report the health of makac and its packages
+
+If the first argument is not a command, it is treated as a workflow file to
+run ('makac foo.lua a b c' is 'makac run foo.lua a b c'). Arguments after
+the workflow are passed to it in the global 'arg' table; the script also
+sees the globals SCRIPT_DIR (its own directory) and PROJECT_DIR (the root
+holding .makac and makac_project.lua).
+
+A workflow may also run directly via a shebang line ('#!/usr/bin/env makac').
+Outside a project (no '.makac'/'.git' ancestor) workflows run without a
+data directory: packages are not loaded and PROJECT_DIR is unset.
 
 flags:
   --version       print version (major.minor) and exit
@@ -80,6 +91,18 @@ main :: proc() {
 		}
 	}
 
+	if pc.source.name == "makac" {
+		// `makac <workflow> [args...]` — the implicit form: the first word
+		// matched no subcommand, so it (and everything after it) was kept
+		// verbatim as positional args; treat args[0] as the workflow.
+		if pargs, has := ap.find_args(res); has && len(pargs.value) > 0 {
+			run_script(pargs.value[0], pargs.value[1:])
+			return
+		}
+		fmt.eprint(USAGE)
+		os.exit(1)
+	}
+
 	switch pc.source.name {
 	case "init":
 		pargs, _ := ap.find_args(res)
@@ -111,54 +134,13 @@ main :: proc() {
 			vm.close(v)
 		}
 	case "run":
-		dir, rok := resolve_datadir()
-		if !rok {os.exit(1)}
-		defer delete(dir)
 		pargs, _ := ap.find_args(res)
-		if len(pargs.value) != 1 {
-			fmt.eprintf("makac: run takes exactly one <workflow> argument\n")
+		if len(pargs.value) < 1 {
+			fmt.eprintf("makac: run takes a <workflow> argument\n")
 			fmt.eprint(USAGE)
 			os.exit(1)
 		}
-		v := vm.new(dir)
-		if v == nil {
-			fmt.eprintf("makac: failed to create Lua VM\n")
-			os.exit(1)
-		}
-		defer vm.close(v)
-		// Load fetched packages BEFORE evaluating the workflow (task23):
-		// their actions/fetchers join makac's registries as '<alias>:<name>'
-		// and their lib/ is require-able via 'pkgs/<alias>/...' (task22).
-		// Nothing fetched (.makac/packages absent or empty) is skipped
-		// silently — fetching is the user's explicit 'makac fetch' step,
-		// never automatic.
-		ok := true
-		err: vm.Error
-		if lerr, lok := vm.run_string(v, "makac.load_packages()"); !lok {
-			err, ok = lerr, false
-		} else {
-			if lerr.message != "" {delete(lerr.message)}
-			err, ok = vm.run_file(v, pargs.value[0])
-		}
-		// design/luacats.md: install/refresh the stub + package aliases
-		// (best-effort).
-		install_luals(v)
-		// design/target.md: "the runner closes every target when the
-		// workflow finishes" — unconditionally, even when the workflow (or
-		// package loading above — package-provided actions can create
-		// targets too) failed, leaving SSH control masters etc. behind
-		// otherwise.
-		_, terr := vm.call_named(v, "makac.close_all_targets")
-		if terr.message != "" {
-			fmt.eprintf("makac: warning: closing targets failed: %s\n", terr.message)
-			delete(terr.message)
-		}
-		if !ok {
-			report_error(err.message)
-			if err.message != "" {delete(err.message)}
-			os.exit(1)
-		}
-		if err.message != "" {delete(err.message)}
+		run_script(pargs.value[0], pargs.value[1:])
 	case "fetch":
 		dir, rok := resolve_datadir()
 		if !rok {os.exit(1)}
@@ -246,6 +228,77 @@ Then run 'makac fetch' again.
 		fmt.eprint(USAGE)
 		os.exit(1)
 	}
+}
+
+// run_script resolves the data directory if there is one and runs the
+// workflow file at `script`, exposing the script context globals (arg,
+// SCRIPT_DIR, PROJECT_DIR). Shared by 'makac run <workflow>', the implicit
+// 'makac <workflow>' form and '#!/usr/bin/env makac' shebang scripts —
+// those must run ANYWHERE, so outside a project the script simply runs
+// data-dir-less: packages are not loaded, PROJECT_DIR is left nil and
+// data-dir primitives (makac.download, ...) raise clear errors if used.
+// Calls os.exit on failure; on success returns with the VM closed and
+// targets cleaned up.
+run_script :: proc(script: string, script_args: []string) {
+	dir := ""
+	cwd, e := os.get_working_directory(context.temp_allocator)
+	if e != nil {
+		fmt.eprintf("makac: cannot determine working directory: %s\n", os.error_string(e))
+		os.exit(1)
+	}
+	#partial switch d, derr := dd.resolve(cwd); derr {
+	case .None:
+		dir = d
+	case .Not_Found:
+		// no project (no '.makac'/'.git' ancestor): run data-dir-less
+	case:
+		fmt.eprintf(
+			"makac: warning: could not prepare a '.makac' data directory; running without one\n",
+		)
+	}
+	defer if dir != "" {delete(dir)}
+	v := vm.new(dir)
+	if v == nil {
+		fmt.eprintf("makac: failed to create Lua VM\n")
+		os.exit(1)
+	}
+	defer vm.close(v)
+	vm.set_script_context(v, script, script_args)
+	// Load fetched packages BEFORE evaluating the workflow (task23):
+	// their actions/fetchers join makac's registries as '<alias>:<name>'
+	// and their lib/ is require-able via 'pkgs/<alias>/...' (task22).
+	// Nothing fetched (.makac/packages absent or empty) is skipped
+	// silently — fetching is the user's explicit 'makac fetch' step,
+	// never automatic.
+	ok := true
+	err: vm.Error
+	if dir == "" {
+		err, ok = vm.run_file(v, script)
+	} else if lerr, lok := vm.run_string(v, "makac.load_packages()"); !lok {
+		err, ok = lerr, false
+	} else {
+		if lerr.message != "" {delete(lerr.message)}
+		err, ok = vm.run_file(v, script)
+	}
+	// design/luacats.md: install/refresh the stub + package aliases
+	// (best-effort).
+	install_luals(v)
+	// design/target.md: "the runner closes every target when the
+	// workflow finishes" — unconditionally, even when the workflow (or
+	// package loading above — package-provided actions can create
+	// targets too) failed, leaving SSH control masters etc. behind
+	// otherwise.
+	_, terr := vm.call_named(v, "makac.close_all_targets")
+	if terr.message != "" {
+		fmt.eprintf("makac: warning: closing targets failed: %s\n", terr.message)
+		delete(terr.message)
+	}
+	if !ok {
+		report_error(err.message)
+		if err.message != "" {delete(err.message)}
+		os.exit(1)
+	}
+	if err.message != "" {delete(err.message)}
 }
 
 // install_luals runs the prelude's makac._luals_setup (design/luacats.md):

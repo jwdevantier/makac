@@ -42,6 +42,8 @@ Target operations (`run`/`put`/`get`/`close`) are documented on the
 | Primitive | Description |
 | --- | --- |
 | `makac.data_dir` | The VM's data directory (may be the empty string for a data-dir-less VM). |
+| `makac.project_root(data_dir?)` | The project root: the directory that holds the data directory (and `makac_project.lua`). |
+| `makac.project_file_path(data_dir?)` | Path of the project file: `<project root>/makac_project.lua`. |
 | `makac.pkg_dirs` | Maps each wired package's alias to its code root on disk. |
 | `makac.read_project_file(data_dir?)` | Reads and validates the project's `makac_project.lua` (beside the data directory), returning `inputs, aliases, labels`. |
 | `makac.resolve_fetcher(def)` | Resolves an entry's `fetcher` to its fetch callable (string name → registry lookup; an inline object contributes its `fetch`). |

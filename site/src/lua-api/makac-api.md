@@ -3,9 +3,25 @@
 
 # Makac API
 
-The `makac.*` primitives baked into the VM — registered from Odin before the
-embedded prelude runs. For the workflow surface built on top of them (`step`,
-targets, registries), see [The workflow DSL](workflow-dsl.md).
+The API makac bakes into the VM from Odin, before the embedded prelude runs: the
+`makac.*` primitives and the script-context globals. For the workflow surface
+built on top of them (`step`, targets, registries), see
+[The workflow DSL](workflow-dsl.md).
+
+## Script context
+
+While a workflow runs, the VM defines three globals describing how it was
+invoked:
+
+| Global | Value |
+| --- | --- |
+| `arg` | Array-like table, following the `lua` interpreter convention: `arg[0]` is the workflow path as given on the command line, `arg[1]`, … the arguments after it (verbatim, dashes intact). |
+| `SCRIPT_DIR` | Absolute path of the directory the workflow file lives in. |
+| `PROJECT_DIR` | The project root — the directory holding `.makac` and `makac_project.lua` (the same value `makac.project_root()` returns). `nil` when there is no project. |
+
+They are `nil` outside a workflow run. See
+[Running a workflow](../reference/cli.md#running-a-workflow) for examples,
+including shebang scripts.
 
 ## `makac.exec(argv, opts?)`
 

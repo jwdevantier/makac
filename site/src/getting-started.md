@@ -76,6 +76,9 @@ cd myproject
 makac run hello.lua
 ```
 
+(`run` is optional — `makac hello.lua` does the same, and with a
+`#!/usr/bin/env makac` shebang even `./hello.lua` works.)
+
 `makac run` evaluates the file top to bottom, executing each `step` the moment it is
 reached — which is what allows steps to sit inside ordinary Lua control flow (loops,
 conditionals, functions). Every step is reported to **stderr** as it starts and when it

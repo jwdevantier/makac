@@ -2965,3 +2965,60 @@ test_qmp_binding :: proc(t: ^T) {
 	if !ok {delete(err.message)}
 	testing.expect(t, ok, err.message)
 }
+
+// run_file must skip a leading shebang line ('#!/usr/bin/env makac') like
+// stock luaL_loadfilex — replacing it with a lone newline so that error
+// line numbers still match the file on disk: an error on file line 4 must
+// be reported as line 4.
+@(test)
+test_run_file_shebang :: proc(t: ^T) {
+	dir, derr := os.make_directory_temp("", "makac_shebang_*", context.allocator)
+	if !testing.expect(t, derr == nil, "temp dir") {return}
+	defer {
+		os.remove_all(dir)
+		delete(dir)
+	}
+
+	// a runnable shebang script
+	ok_path := strings.concatenate({dir, "/hello.lua"}, context.temp_allocator)
+	werr := os.write_entire_file_from_string(
+		ok_path,
+		"#!/usr/bin/env makac\nn = 40 + 2\n",
+	)
+	if !testing.expect(t, werr == nil, "write hello.lua") {return}
+
+	// an error deep in the file: the shebang must not shift line numbers
+	bad_path := strings.concatenate({dir, "/bad.lua"}, context.temp_allocator)
+	werr2 := os.write_entire_file_from_string(
+		bad_path,
+		"#!/usr/bin/env makac\n\n\nerror('boom')\n",
+	)
+	if !testing.expect(t, werr2 == nil, "write bad.lua") {return}
+
+	v := new(dir)
+	defer close(v)
+
+	// shebang scripts run and define state normally
+	err, ok := run_file(v, ok_path)
+	if err.message != "" {defer delete(err.message)}
+	testing.expect(t, ok, err.message)
+
+	// a lone '#'-line file (no trailing newline) is an empty script
+	lone_path := strings.concatenate({dir, "/lone.lua"}, context.temp_allocator)
+	werrl := os.write_entire_file_from_string(lone_path, "#!/usr/bin/env makac")
+	if !testing.expect(t, werrl == nil, "write lone.lua") {return}
+	err2, ok2 := run_file(v, lone_path)
+	if err2.message != "" {defer delete(err2.message)}
+	testing.expect(t, ok2, err2.message)
+
+	// error line numbers match the file, shebang included
+	err3, ok3 := run_file(v, bad_path)
+	defer delete(err3.message)
+	testing.expect(t, !ok3, "expected bad.lua to fail")
+	testing.expectf(
+		t,
+		strings.contains(err3.message, ":4:"),
+		"line number must match the file (expected ':4:'); got: %s",
+		err3.message,
+	)
+}

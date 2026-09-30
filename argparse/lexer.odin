@@ -36,6 +36,12 @@ Token_Kind :: enum {
 Token :: struct {
 	kind: Token_Kind,
 	text: string,
+	// The argument exactly as it appeared on the command line, for flag
+	// tokens: "--long" / "-s" / (on a bundle's FIRST token) "-abc".
+	// Bundle continuation tokens and non-flag tokens leave it "". Used by
+	// parse to echo trailing args back verbatim once parsing gives up on
+	// command/flag interpretation (`makac <script> <args...>`).
+	verbatim: string,
 }
 
 Flag_Value :: enum {
@@ -87,27 +93,41 @@ tokenize :: proc(
 			return
 		} else if strings.has_prefix(arg, "--") {
 			flag_name := arg[2:]
-			append(&tokens, Token{kind = .Long_Flag, text = flag_name})
+			append(&tokens, Token{kind = .Long_Flag, text = flag_name, verbatim = arg})
 		} else if strings.has_prefix(arg, "-") && len(arg) > 1 {
 			flag_name := arg[1:]
-			if len(flag_name) > 1 {
-				for ch, ch_ndx in flag_name {
-					if (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') {
-						// in our case, we could have used +1 as ch is within the ASCII range.
-						append(
-							&tokens,
-							Token {
-								kind = .Short_Flag,
-								text = flag_name[ch_ndx:ch_ndx + utf8.rune_size(ch)],
-							},
-						)
-					} else {
-						err_at = ndx
-						return
+			// Bundles ("-abc" == "-a -b -c") only cover pure letter sequences.
+			// Anything else ("-n5", "-=x") cannot be a makac flag — keep the
+			// whole arg as a Word so it survives as a positional argument
+			// instead of failing tokenization (`makac script.lua -n5`).
+			bundle := len(flag_name) > 1
+			if bundle {
+				for ch in flag_name {
+					if !((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')) {
+						bundle = false
+						break
 					}
 				}
+			}
+			if len(flag_name) > 1 && !bundle {
+				append(&tokens, Token{kind = .Word, text = arg})
+			} else if !bundle {
+				append(&tokens, Token{kind = .Short_Flag, text = flag_name, verbatim = arg})
 			} else {
-				append(&tokens, Token{kind = .Short_Flag, text = flag_name})
+				for ch, ch_ndx in flag_name {
+					// in our case, we could have used +1 as ch is within the ASCII range.
+					append(
+						&tokens,
+						Token {
+							kind = .Short_Flag,
+							text = flag_name[ch_ndx:ch_ndx + utf8.rune_size(ch)],
+							// the bundle's first token carries the whole original
+							// arg ("-abc"); continuations keep verbatim "" so the
+							// slurp in parse emits the bundle once, intact.
+							verbatim = ch_ndx == 0 ? arg : "",
+						},
+					)
+				}
 			}
 		} else {
 			if strings.has_prefix(arg, "-") {

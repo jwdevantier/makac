@@ -6,6 +6,7 @@ import "base:runtime"
 import "core:c"
 import "core:fmt"
 import "core:os"
+import "core:path/filepath"
 import "core:strings"
 import "core:sys/posix"
 
@@ -71,7 +72,47 @@ new :: proc(data_dir: string = "") -> ^VM {
 	lua.pushlstring(state, cstring(raw_data(v.data_dir)), c.size_t(len(v.data_dir)))
 	lua.setfield(state, -2, "data_dir")
 	lua.pop(state, 1)
+	// PROJECT_DIR mirrors makac.project_root(): the directory holding the
+	// .makac data directory and makac_project.lua. Only defined when the VM
+	// has a data directory (a data-dir-less VM — tests — leaves it nil).
+	if v.data_dir != "" {
+		root := filepath.dir(v.data_dir)
+		lua.pushlstring(state, cstring(raw_data(root)), c.size_t(len(root)))
+		lua.setglobal(state, "PROJECT_DIR")
+	}
 	return v
+}
+
+// set_script_context exposes the script's execution context as Lua globals:
+//
+//	arg        array-like table; arg[0] is the script path as given on the
+//	           command line, arg[1..n] are the arguments following it
+//	SCRIPT_DIR absolute path of the directory the script resides in
+//
+// Call after `new`, before loading packages / running the script, so that
+// package init code and the script itself see the same context.
+set_script_context :: proc(v: ^VM, script_path: string, script_args: []string) {
+	L := v.state
+	top := lua.gettop(L)
+	defer lua.settop(L, top) // balanced
+
+	lua.createtable(L, c.int(len(script_args)), 1)
+	lua.pushlstring(L, cstring(raw_data(script_path)), c.size_t(len(script_path)))
+	lua.rawseti(L, -2, 0)
+	for a, i in script_args {
+		lua.pushlstring(L, cstring(raw_data(a)), c.size_t(len(a)))
+		lua.rawseti(L, -2, lua.Integer(i + 1))
+	}
+	lua.setglobal(L, "arg")
+
+	// SCRIPT_DIR is the directory of the script, made absolute against the
+	// CWD first so a relative script path still yields an anchor usable
+	// after any chdir; bare filenames resolve to the CWD itself.
+	abs := filepath.abs(script_path, context.temp_allocator) or_else script_path
+	dir := filepath.dir(abs)
+	if dir == "" {dir = "."}
+	lua.pushlstring(L, cstring(raw_data(dir)), c.size_t(len(dir)))
+	lua.setglobal(L, "SCRIPT_DIR")
 }
 
 // Destroy the VM and its underlying Lua state.
@@ -124,15 +165,25 @@ _pop_error_message :: proc(L: ^lua.State) -> string {
 
 // Load and evaluate the Lua file at `path`. The chunk is named "@path" so that
 // error messages and tracebacks refer to the file. Missing/unreadable files
-// are reported as errors.
+// are reported as errors. A leading shebang line ('#!/usr/bin/env makac') is
+// skipped so scripts can be executed directly; it is replaced by a lone
+// newline (as luaL_loadfilex does) to keep tracebacks aligned with the file.
 run_file :: proc(v: ^VM, path: string) -> (err: Error, ok: bool) {
 	src, read_err := os.read_entire_file(path, context.temp_allocator)
 	if read_err != nil {
 		err.message = fmt.aprintf("cannot read file '%s': %s", path, os.error_string(read_err))
 		return err, false
 	}
+	body := string(src)
+	if len(body) > 0 && body[0] == '#' {
+		if nl := strings.index_byte(body, '\n'); nl >= 0 {
+			body = strings.concatenate({"\n", body[nl + 1:]}, context.temp_allocator)
+		} else {
+			body = "\n" // a file holding only a shebang line is an empty script
+		}
+	}
 	chunk_name := fmt.aprintf("@%s", path, allocator = context.temp_allocator)
-	return run_string(v, string(src), chunk_name)
+	return run_string(v, body, chunk_name)
 }
 
 // Call the Lua function at dotted path `name` (e.g. "makac.close_all_targets")

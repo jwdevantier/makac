@@ -156,10 +156,29 @@ function Dir:remove(sub) end
 ---@field dumps fun(value: any): string
 ---@field loads fun(s: string): any
 
+-- --- script context globals (see design/cli.md) ----------------------------
+
+---Absolute path of the directory running the workflow lives in; only set
+---when running a workflow ('makac <file>' / 'makac run <file>').
+---@type string|nil
+SCRIPT_DIR = nil
+
+---Project root: the directory holding '.makac' and 'makac_project.lua';
+---only set when the VM has a data directory.
+---@type string|nil
+PROJECT_DIR = nil
+
+---Command-line arguments after the workflow file: arg[0] is the workflow
+---path as given, arg[1..] the arguments after it; only set when running a
+---workflow.
+---@type string[]|nil
+arg = nil
+
 -- --- the makac global ------------------------------------------------------
 
 ---@class Makac
 ---@field data_dir string
+---@field project_root fun(data_dir?: string): string
 ---@field exec fun(argv: string[], opts?: RunOpts): RunResult
 ---@field spawn fun(argv: string[], opts?: SpawnOpts): Proc
 ---@field pid_alive fun(pid: integer): boolean

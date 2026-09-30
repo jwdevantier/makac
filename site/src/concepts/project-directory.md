@@ -7,6 +7,10 @@ A makac project is an ordinary directory that holds two makac-owned items: the
 hand-written **project file** `makac_project.lua`, and the **data directory**
 `.makac/`. Everything else is your own code.
 
+A workflow can also run outside any project (see the
+[CLI](../reference/cli.md)): it then simply has no data directory — no packages,
+and `PROJECT_DIR` is `nil`.
+
 ```text
 <project root>/
   |- makac_project.lua   the project file (committed): inputs + alias wiring

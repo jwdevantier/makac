@@ -14,7 +14,8 @@ set -euo pipefail
 bin="$(readlink -f "$1")"
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-bash "$here/smoke-test.sh" "$bin"
-bash "$here/package-fetchers.sh" "$bin"
+for t in smoke-test script-args shebang package-fetchers; do
+  bash "$here/$t.sh" "$bin" || { echo "e2e: $t FAILED" >&2; exit 1; }
+done
 
 echo "e2e: all tests passed"
