@@ -108,3 +108,45 @@ jobs:
       # its sha256, so a failure means a regression or a changed artifact).
       - name: Real-world download test (network)
         run: MAKAC_REAL_WORLD=1 odin test ./downloader
+
+  # Build makac through the Nix flake — the `nix build` / `nix run` path — and
+  # smoke-test the artifact. This catches flake/packaging regressions the
+  # direct `odin build` job above would not, and it exercises the aarch64
+  # path in particular: Odin's aarch64 toolchain does not bundle Lua, so the
+  # flake links pkgs.lua5_4 instead.
+  flake:
+    name: flake (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: amd64
+            runner: ubuntu-22.04
+          - target: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    # The flake pins Odin dev-2026-06 via an overlay, so a cold cache builds
+    # Odin (and LLVM) from source. The store cache makes reruns cheap.
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+
+      - name: Cache Nix store
+        uses: nix-community/cache-nix-action@v7
+        with:
+          primary-key: nix-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.lock', 'flake.nix') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-${{ runner.arch }}-
+          gc-max-store-size-linux: 5G
+
+      - name: Build makac from the flake
+        run: |
+          nix build .#makac --print-build-logs
+          ./result/bin/makac --version
+
+      # Same hermetic end-to-end suite the direct-build job runs, so the
+      # flake artifact is held to the same bar as the release binary.
+      - name: End-to-end tests against the flake build
+        run: bash e2e_test/run_all.sh ./result/bin/makac
