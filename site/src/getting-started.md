@@ -3,34 +3,8 @@
 
 # Getting Started
 
-This page walks you through building makac from source and running your first workflow.
-You need nothing but the Odin compiler to build; on Nix, everything comes from the flake.
-
-## Build from source
-
-Clone the repository and enter the default development shell:
-
-```bash
-git clone https://github.com/jwdevantier/makac
-cd makac
-nix develop
-```
-
-`nix develop` drops you into the project's dev shell, which provides the Odin compiler
-(and the usual build tools). If you are not using Nix, install the Odin compiler yourself
-and skip straight to the build.
-
-Then, from the repository root, build the binary:
-
-```bash
-odin build . -out:makac
-```
-
-The resulting executable is `./makac` at the repository root. It is gitignored, so it
-will never end up in a commit — rebuild whenever you pull changes.
-
-> **Note:** the `site` dev shell (`nix develop .#site`) exists for working on this
-> documentation itself; it provides `mdbook` instead of the Odin toolchain.
+This page runs your first workflow. It assumes `makac` is already installed —
+see [Installation](installation.md) if it is not.
 
 ## A first tour
 

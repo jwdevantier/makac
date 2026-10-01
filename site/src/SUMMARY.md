@@ -4,6 +4,7 @@
 # Summary
 
 - [Introduction](intro.md)
+- [Installation](installation.md)
 - [Getting Started](getting-started.md)
 - [Concepts](concepts/index.md)
   - [Workflows](concepts/workflows.md)

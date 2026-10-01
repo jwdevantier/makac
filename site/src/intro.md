@@ -57,7 +57,7 @@ programming language:
 ## Dependencies
 
 makac is deliberately light on dependencies: building it needs only the Odin compiler.
-See [Getting Started](getting-started.md) for build instructions.
+See [Installation](installation.md) for the ways to get makac.
 
 ## The QEMU package
 
@@ -67,7 +67,8 @@ makac core. It is documented on its own page: [The makac QEMU package](qemu-pack
 
 ## About this book
 
-- [Getting Started](getting-started.md) — build makac and run your first workflow.
+- [Installation](installation.md) — get makac (Nix flake, prebuilt binary, or from source).
+- [Getting Started](getting-started.md) — run your first workflow.
 - [Concepts](concepts/index.md) — workflows, steps, actions, targets, facts, and packages.
 - [Reference](reference/index.md) — the CLI, the step specification, built-in actions,
   and fetchers.
