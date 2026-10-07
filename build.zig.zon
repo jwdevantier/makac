@@ -1,0 +1,15 @@
+.{
+    .name = .makac,
+    .version = "0.0.0",
+    .fingerprint = 0xc8c59a42b546e5ef,
+    .minimum_zig_version = "0.16.0",
+    .dependencies = .{
+        // Stock Lua 5.4 C sources — embedded verbatim; the reference
+        // (Odin) implementation embeds the same library via vendor:lua/5.4.
+        .lua = .{
+            .url = "https://www.lua.org/ftp/lua-5.4.8.tar.gz",
+            .hash = "N-V-__8AAKEzFAAA695b9LXBhUSVK5MAV_VKSm1mEj3Acbze",
+        },
+    },
+    .paths = .{ "build.zig", "build.zig.zon", "src" },
+}

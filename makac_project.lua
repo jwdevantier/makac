@@ -1,0 +1,24 @@
+-- makac_project.lua — this project's dependency wiring.
+--
+-- 'inputs' says where each package comes from. The key is a local LABEL for
+-- the fetch instruction:
+--
+--   return {
+--     inputs = {
+--       qemu = { fetcher = "fetchgit",
+--         with = { url = "https://github.com/user/repo.git", rev = "main" } },
+--     },
+--     packages = { qemu = "qemu" },
+--   }
+--
+-- 'packages' wires an alias to an input label. Aliases are the names workflows
+-- and packages use: 'qemu:<action>' in a step's uses field,
+-- require("pkgs/qemu/...") in Lua.
+--
+-- Fetchers in this file: the built-ins ("fetchurl", "fetchgit", "filesystem")
+-- or any fetcher provided by another package of this project ('makac fetch'
+-- keeps retrying inputs until it cannot make progress). Fetched code is
+-- stored content-addressed under .makac/packages/<key>/; stale entries are
+-- pruned after each fetch. Packages are fetched explicitly: run 'makac fetch'
+-- after editing.
+return { inputs = {}, packages = {} }
