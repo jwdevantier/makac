@@ -3,7 +3,7 @@
 
 .{
     .name = .makac,
-    .version = "0.0.0",
+    .version = "0.7.0",
     .fingerprint = 0xc8c59a42b546e5ef,
     .minimum_zig_version = "0.16.0",
     .dependencies = .{
