@@ -81,9 +81,9 @@ end
 -- --- test context -----------------------------------------------------------
 
 --- Fresh per-test context: a throwaway tmp dir + helpers to invoke the binary
---- under test. The binary is always invoked with MAKAC_COLOR=never merged on
---- top of the current environment (deterministic stderr), with chdir
---- defaulting to the tmp dir (isolated: no .makac/.git anywhere above /tmp).
+--- under test. The binary is always invoked with NO_COLOR=1 merged on top of
+--- the current environment (deterministic stderr), with chdir defaulting to
+--- the tmp dir (isolated: no .makac/.git anywhere above /tmp).
 function M.new_ctx(bin)
 	-- mktemp_dir returns a makac.path value; stringify once for concatenation
 	local tmp = tostring(assert(makac.fs.mktemp_dir("makac-blackbox")))
@@ -95,7 +95,7 @@ function M.new_ctx(bin)
 		opts = opts or {}
 		local argv = { bin }
 		for _, a in ipairs(args) do argv[#argv + 1] = a end
-		local env = { MAKAC_COLOR = "never" }
+		local env = { NO_COLOR = "1" }
 		if opts.env then for k, v in pairs(opts.env) do env[k] = v end end
 		return makac.exec(argv, {
 			chdir = opts.chdir or tmp,

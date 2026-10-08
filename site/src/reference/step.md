@@ -94,7 +94,6 @@ failed: [host] doomed (0.0s)
 
 The status is `ok` (ran, unchanged), `changed`, `skipped`, or `failed`; the
 `failed` line prints before the abort error above. Colors (green/yellow/cyan/red)
-are environment-controlled: `MAKAC_COLOR=never` (or `0`/`false`/`no`/`off`)
-disables them, `MAKAC_COLOR=always` (or `1`/`true`/`yes`/`on`) forces them on,
-`NO_COLOR` (any value) disables them, and by default they are on unless `TERM`
-is unset or `dumb`. stdout stays reserved for the workflow's own output.
+are environment-controlled: `NO_COLOR` (set to anything, even the empty string)
+disables them, and by default they are on unless `TERM` is unset or `dumb`.
+stdout stays reserved for the workflow's own output.

@@ -120,7 +120,7 @@ h.case("cli", "shebang_script_executes", function(ctx)
 	local r = makac.exec({ ctx.path("hello.lua") }, {
 		chdir = ctx.tmp,
 		env = {
-			MAKAC_COLOR = "never",
+			NO_COLOR = "1",
 			PATH = ctx.path("bin") .. ":" .. (os.getenv("PATH") or ""),
 		},
 	})

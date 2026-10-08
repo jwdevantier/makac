@@ -81,19 +81,33 @@ step { uses = "shell", with = { cmd = { "true" } } }
 	h.matches(r.stderr, "run: %[host%] run shell command", "name falls back to the action default")
 end)
 
-h.case("steps", "colors_off_with_makac_color_never", function(ctx)
-	-- ctx.run already sets MAKAC_COLOR=never
+h.case("steps", "colors_off_with_no_color", function(ctx)
+	-- ctx.run already sets NO_COLOR=1
 	ctx.write("c.lua", 'step { uses = "shell", with = { cmd = { "true" } } }')
 	local r = ctx.run({ "run", "c.lua" })
 	h.eq(r.code, 0, "exit code: " .. r.stderr)
-	h.not_contains(r.stderr, "\27", "no ANSI escapes when colors are off")
+	h.not_contains(r.stderr, "\27", "no ANSI escapes when NO_COLOR is set")
 end)
 
-h.case("steps", "colors_on_with_makac_color_always", function(ctx)
+h.case("steps", "no_color_disables_colors_regardless_of_value_or_term", function(ctx)
 	ctx.write("c.lua", 'step { uses = "shell", with = { cmd = { "true" } } }')
+	-- NO_COLOR set at all (here: to the empty string) must win over a
+	-- color-capable TERM
 	local r = ctx.run({ "run", "c.lua" }, {
-		env = { MAKAC_COLOR = "always", TERM = "dumb" },
+		env = { NO_COLOR = "", TERM = "xterm-256color" },
 	})
 	h.eq(r.code, 0, "exit code: " .. r.stderr)
-	h.contains(r.stderr, "\27", "ANSI escapes when forced on, even with TERM=dumb")
+	h.not_contains(r.stderr, "\27", "NO_COLOR set at all disables colors")
+end)
+
+h.case("steps", "colors_on_by_default_when_no_color_unset", function(ctx)
+	if os.getenv("NO_COLOR") ~= nil then return end -- ambient NO_COLOR: default not observable
+	ctx.write("c.lua", 'step { uses = "shell", with = { cmd = { "true" } } }')
+	-- bypass ctx.run, which always sets NO_COLOR for deterministic output
+	local r = makac.exec({ ctx.bin, "run", "c.lua" }, {
+		chdir = ctx.tmp,
+		env = { TERM = "xterm-256color" },
+	})
+	h.eq(r.code, 0, "exit code: " .. r.stderr)
+	h.contains(r.stderr, "\27", "colors on by default when NO_COLOR is unset")
 end)
