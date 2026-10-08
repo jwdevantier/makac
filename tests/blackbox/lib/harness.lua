@@ -1,3 +1,6 @@
+-- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier
+-- SPDX-License-Identifier: BSD-2-Clause
+--
 -- lib/harness.lua — tiny test framework for black-box testing a makac binary.
 --
 -- Deliberately minimal-footprint: uses only makac.exec + makac.fs + print, so

@@ -1,3 +1,6 @@
+-- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier
+-- SPDX-License-Identifier: BSD-2-Clause
+--
 -- specs/json_time_env.lua — makac.json / makac.time / makac.env / sha256 /
 -- random_hex / _luals_stub in-VM.
 -- Contracts: site/src/lua-api/makac-api.md; stub classes MakacJson/Time/Env.

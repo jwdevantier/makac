@@ -1,0 +1,219 @@
+<!-- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier -->
+<!-- SPDX-License-Identifier: CC0-1.0 -->
+
+# CLI
+
+`makac` is a single binary with four commands and one flag:
+
+```text
+usage: makac [--version] <command> [args]
+       makac <workflow> [args...]
+
+commands:
+  init <path>                  initialize a .makac data directory
+  run <workflow> [args...]     run a workflow file
+  fetch                        fetch packages listed in makac_project.lua
+  doctor [name...]             report the health of makac and its packages
+
+flags:
+  --version       print version (major.minor) and exit
+```
+
+A workflow can also be run without the `run` word — `makac <workflow> [args...]`
+(see [Running a workflow](#running-a-workflow)).
+
+## `makac init <path>`
+
+Initializes a makac data directory (`.makac`) at `<path>`:
+
+- if `<path>` ends with `.makac`, it is used exactly as given;
+- otherwise makac creates `<path>/.makac`.
+
+```bash
+$ makac init myproject
+makac: initialized data directory at myproject
+```
+
+Creating an already-existing data directory is not an error. `init` also creates
+an empty `makac_project.lua` beside the data directory (unless one already
+exists), so the project is ready to declare packages — see
+[Packages](../concepts/packages.md). `init` is how you set up a project when
+makac cannot find a project root on its own (see
+[Project directory](../concepts/project-directory.md)).
+
+## Running a workflow
+
+Evaluates a workflow file (any Lua file) top to bottom, in a fresh VM that has
+the full Lua 5.4 standard library plus the `makac.*` primitives and DSL (see
+[Lua API](../lua-api/index.md)):
+
+```bash
+makac run my_workflow.lua
+makac my_workflow.lua            # 'run' is optional
+```
+
+`run` is optional: if the first argument is not a subcommand (`init`, `run`,
+`fetch`, `doctor`), it is taken as the workflow to run. The flip side is a
+deliberate ambiguity — a workflow named exactly like a subcommand must be
+invoked explicitly (`makac run fetch`) or as `./fetch`.
+
+Before the workflow itself runs, makac loads every package wired in
+`makac_project.lua`'s `packages` table, merging their actions and fetchers into
+the registries under their `<alias>:` prefix and making their `lib/` require-able
+via `require("pkgs/<alias>/...")` (a package reaches its own modules with the
+package-rooted `require("./...")`). Each manifest's `requires` is checked against
+the wired aliases; an unwired requirement aborts the run with the package
+author's own message. A wired-but-not-fetched package aborts the run
+with an error telling you to run `makac fetch` first. No project file means no
+packages — silently.
+
+When the workflow finishes — successfully **or** by failing — makac closes every
+target the workflow used, then exits.
+
+### Arguments and script context
+
+Everything after the workflow path is passed through to it, verbatim:
+`makac run my_workflow.lua one "two words" --flag`. The script sees three
+globals:
+
+| Global | Value |
+| --- | --- |
+| `arg` | Array-like table: `arg[0]` is the workflow path as given, `arg[1]`, … the arguments after it. Dashes are preserved (`--flag` stays `--flag`). |
+| `SCRIPT_DIR` | Absolute path of the directory the workflow file lives in. |
+| `PROJECT_DIR` | The project root — the directory holding `.makac` and `makac_project.lua`; `nil` when there is no project. |
+
+The three are only set while a workflow runs. A complete example:
+
+```lua
+-- example.lua — try: makac example.lua one "two words" --verbose -n5
+print("script:   " .. tostring(arg and arg[0]))
+print("args (" .. tostring(arg and #arg or 0) .. "):")
+for i = 1, #(arg or {}) do
+    print(("  [%d] %q"):format(i, arg[i]))
+end
+print("SCRIPT_DIR:  " .. tostring(SCRIPT_DIR))
+print("PROJECT_DIR: " .. tostring(PROJECT_DIR))
+```
+
+### Shebang scripts
+
+A workflow can be executable in its own right, with makac as its interpreter:
+
+```lua
+#!/usr/bin/env makac
+print("hello, world")
+```
+
+```bash
+chmod +x hello.lua
+./hello.lua
+```
+
+makac skips the leading shebang line — replacing it with a blank line, so
+error line numbers still match the file (stock Lua behaves the same way). A
+shebang script takes arguments just like `makac run`, since the kernel forwards
+them to makac.
+
+If the script is **not** inside a project (no `.makac` or `.git` ancestor), it
+still runs, but with no data directory: packages are not loaded, `PROJECT_DIR`
+is `nil`, and data-dir-dependent functions (`makac.download`, `makac.fetch_all`,
+…) raise if used.
+
+## `makac fetch`
+
+Fetches every input listed in `makac_project.lua`, using each entry's declared
+fetcher. Inputs are processed as a worklist: an input is fetched as soon as its
+fetcher resolves, and fetched packages' fetchers immediately join the registry,
+so a package fetched in the run can provide the fetcher for a later input.
+Fetched code is stored content-addressed under `.makac/packages/<key>/`; at the
+end of the run makac prunes stale entries. Fetching is **never** automatic: you run
+`makac fetch` yourself, whenever you add or change dependencies.
+
+```bash
+$ makac fetch
+fetching qemu via fetchgit...
+fetched qemu
+```
+
+If no `makac_project.lua` exists yet, `makac fetch` is **not** an error — it prints
+where the file lives and an example, and exits 0:
+
+```text
+makac: no makac_project.lua found.
+
+The project file for this project lives at:
+  /path/to/project/makac_project.lua
+...
+```
+
+Any fetch failure (unknown fetcher, checksum mismatch, network error, bad
+`with` arguments) aborts the whole fetch run with a non-zero exit.
+
+## `makac doctor`
+
+Reports the health of makac itself and of every package the project lists:
+required programs on `$PATH`, the data directory writable, and each package's
+own checks. Output is grouped, base group `makac` first:
+
+```text
+== makac ==
+  - OK    ssh found at /usr/bin/ssh
+  - OK    scp found at /usr/bin/scp
+  - WARN  curl not found
+    - ADVICE: install curl
+
+== qemu ==  1 error
+  - OK    qemu-system-x86_64 found
+  - ERROR qemu-img not found
+    - ADVICE: install qemu
+```
+
+A package's own group is produced by a `<pkg-root>/health.lua` check (the
+package author's contract is documented in makac's `design/doctor.md`); a
+package without one reports a single "no health checks implemented" line.
+
+`makac doctor [name...]` runs every group, or only the named ones (`makac`, or
+package aliases). The exit status is non-zero iff any check reported an error —
+warnings do not fail. Base checks also run outside a project (package checks
+need a resolvable data directory).
+
+## `--version`
+
+Prints the version as `major.minor` and exits:
+
+```bash
+$ makac --version
+0.3
+```
+
+The flag lives on the root command, so `makac --version` works from anywhere —
+no data directory is resolved, no VM is created. The same `major.minor` pair is
+available to workflows as `makac.env.version()` (see
+[Makac API](../lua-api/makac-api.md)).
+
+## Exit behavior
+
+| Situation | Exit code |
+| --- | --- |
+| `makac --version` | 0 |
+| `makac fetch` with no `makac_project.lua` | 0 (informational) |
+| Successful `makac run` / `makac fetch` | 0 |
+| Unknown command, missing/extra arguments, unparseable flags | 1 (usage printed to stderr) |
+| `makac run` workflow failure (a step failed, or the workflow raised) | 1 |
+| `makac fetch` failure (bad entry, fetch error) | 1 |
+| `makac doctor` with no error findings | 0 |
+| `makac doctor` with an error finding, or an unknown group | 1 |
+| `makac fetch` with no resolvable data directory | 1 (with advice: `makac init <path>`) |
+| `makac init` failure (could not create directory) | 1 |
+
+Error messages go to stderr; informational output from fetch goes to stdout.
+
+## The data directory
+
+`fetch` locates the data directory from the current working directory by
+walking up: the first `.makac` found wins; otherwise the first `.git` found gets
+a `.makac` created beside it; if neither exists anywhere up to the filesystem
+root, makac errors and suggests `makac init <path>`. `run` uses the same walk,
+but a missing project is not an error — the workflow simply runs without a data
+directory. See [Project directory](../concepts/project-directory.md) for the
+full rules.

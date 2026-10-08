@@ -1,3 +1,6 @@
+-- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier
+-- SPDX-License-Identifier: BSD-2-Clause
+--
 -- cases/shellaction.lua — the built-in `shell` action, full with/out matrix.
 -- Contracts: site/src/reference/actions.md ("shell"), concepts/actions.md.
 --

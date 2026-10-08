@@ -1,3 +1,6 @@
+-- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier
+-- SPDX-License-Identifier: BSD-2-Clause
+--
 -- specs/exec_spawn.lua — makac.exec / makac.spawn / makac.pid_alive in-VM.
 -- Contracts: site/src/lua-api/makac-api.md. Deeper than the black-box
 -- 'shell' suite: argument validation and exact result shapes.

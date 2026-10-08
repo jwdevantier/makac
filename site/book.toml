@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier
+# SPDX-License-Identifier: CC0-1.0
+[book]
+title = "makac"
+authors = ["Jesper Wendel Devantier"]
+language = "en"
+
+[output.html]
+site-url = "https://jwdevantier.github.io/makac/"
+git-repository-url = "https://github.com/jwdevantier/makac"

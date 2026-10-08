@@ -1,3 +1,6 @@
+-- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier
+-- SPDX-License-Identifier: BSD-2-Clause
+--
 -- cases/cli.lua — CLI surface: --version, usage, init, run (explicit/implied/
 -- shebang), failure exit codes, script globals (arg, SCRIPT_DIR, PROJECT_DIR).
 -- Contracts: site/src/reference/cli.md.

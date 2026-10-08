@@ -1,3 +1,6 @@
+-- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier
+-- SPDX-License-Identifier: BSD-2-Clause
+--
 -- specs/pathdir.lua — the `path` value and `Dir` handle userdata types.
 -- Contracts: site/src/lua-api/makac-api.md + typestub classes Path/Dir.
 -- Edge values (basename("/") == "", etc.) were pinned by probing the
@@ -12,11 +15,21 @@ api.t("pathdir", "path_is_a_value_not_a_string", function()
 	api.neq(type(p), "string", "path is userdata, not a bare string")
 	api.eq(tostring(p), "/tmp/x.txt", "tostring yields the string")
 	-- fs functions accept strings AND paths; path-returning fns hand back paths
-	-- NOTE probed: path values compare by IDENTITY (no __eq): two paths from the
-	-- same string are not ==; compare via tostring() (findings.md).
+	-- DECISION: unlike the Odin reference, `makac.path` HAS __eq — paths compare
+	-- by VALUE (see path_equality_is_value_based); a bare string is still never
+	-- == (Lua does not dispatch __eq across types).
 	api.eq(tostring(makac.fs.path(p)), "/tmp/x.txt", "path() of a path yields the same string")
 	local joined = makac.fs.path_join("/a", "b", "", "c")
 	api.eq(tostring(joined), "/a/b/c", "path_join drops empty elements")
+end)
+
+api.t("pathdir", "path_equality_is_value_based", function()
+	-- DECISION B (port-only, quarantined for the Odin reference): `path` has
+	-- __eq comparing the stored strings; strings still compare unequal.
+	local p = makac.fs.path
+	api.eq(p("/x") == p("/x"), true, "equal paths compare equal (value equality)")
+	api.eq(p("/x") == p("/y"), false, "different paths differ")
+	api.eq(p("/x") == "/x", false, "a path never equals a bare string")
 end)
 
 api.t("pathdir", "dirname_basename_edges", function()
@@ -53,12 +66,18 @@ api.t("pathdir", "dir_list_and_walk", function()
 	makac.fs.write_file(d .. "/f.txt", "x")
 	makac.fs.write_file(d .. "/sub/g.txt", "y")
 	local dir = makac.fs.open_dir(d)
-	-- NOTE probed: Dir:list entries carry 'name' but is_dir is NIL
-	-- (inconsistent with fs.listdir's {name,is_dir} — findings.md)
+	-- NOTE probed: Dir:list entries carry 'name' and 'type' (stat vocabulary),
+	-- but NOT 'is_dir' (Decision C; inconsistent with fs.listdir — findings.md)
 	local names = {}
-	for _, e in ipairs(dir:list()) do names[#names + 1] = e.name end
+	local types = {}
+	for _, e in ipairs(dir:list()) do
+		names[#names + 1] = e.name
+		types[e.name] = e.type
+	end
 	table.sort(names)
 	api.eq(table.concat(names, ","), "f.txt,sub", "list yields entry names")
+	api.eq(types.sub, "dir", "Dir:list entry carries the stat type (dir)")
+	api.eq(types["f.txt"], "file", "Dir:list entry carries the stat type (file)")
 	-- walk: iterator over everything below (probed: returns a function)
 	local seen, count = {}, 0
 	for entry in dir:walk() do

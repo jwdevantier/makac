@@ -1,0 +1,49 @@
+# SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier
+# SPDX-License-Identifier: CC0-1.0
+name: Publish site
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # mdBook is pinned to the same version the local devShell provides via
+      # nixpkgs (`nix develop .#site`); keep the two in step.
+      - name: Setup mdBook
+        uses: peaceiris/actions-mdbook@v2
+        with:
+          mdbook-version: '0.5.2'
+
+      # The mdBook sources are committed as site/ (site/book/ is a build
+      # artifact and gitignored). Fail with a clear message instead of the
+      # runner's opaque "working directory does not exist" when they are not
+      # in the checkout.
+      - name: Check the site sources are present
+        run: |
+          if [ ! -f site/book.toml ]; then
+            echo "::error::site/book.toml is missing from the checkout; commit the site/ sources (site/book/ is gitignored)"
+            exit 1
+          fi
+
+      - name: Build site
+        run: mdbook build site
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./site/book
+          force_orphan: true

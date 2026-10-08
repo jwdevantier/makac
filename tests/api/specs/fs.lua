@@ -1,3 +1,6 @@
+-- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier
+-- SPDX-License-Identifier: BSD-2-Clause
+--
 -- specs/fs.lua — makac.fs.* in-VM, including edge cases pinned by probing
 -- the reference binary (noted inline).
 -- Contracts: site/src/lua-api/makac-api.md ("makac.fs.*").

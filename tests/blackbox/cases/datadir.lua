@@ -1,3 +1,6 @@
+-- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier
+-- SPDX-License-Identifier: BSD-2-Clause
+--
 -- cases/datadir.lua — data-directory resolution: the walk-up rule, the .git
 -- auto-create, and behavior outside any project.
 -- Contracts: site/src/concepts/project-directory.md, reference/cli.md.

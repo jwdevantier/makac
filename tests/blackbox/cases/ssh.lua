@@ -1,3 +1,6 @@
+-- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier
+-- SPDX-License-Identifier: BSD-2-Clause
+--
 -- cases/ssh.lua — SSH targets, three tiers:
 --
 --   * 'ssh' suite (always-on, hermetic): PATH-injected FAKE ssh/scp binaries

@@ -1,3 +1,6 @@
+-- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier
+-- SPDX-License-Identifier: BSD-2-Clause
+--
 -- cases/qmp.lua — the QMP client (makac.qmp_open) driven through the CLI
 -- against the scripted python fake server (servers/fake_qmp.py, vendored
 -- verbatim from makac/qmp_test/). Wire behaviors pinned: greeting +
