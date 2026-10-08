@@ -133,20 +133,12 @@ end
 --
 -- Status colors (green ok / yellow changed / cyan skipped / red failed)
 -- follow the usual conventions and need no flag parsing:
---   MAKAC_COLOR=never (or 0/false/no/off)     colors OFF
---   MAKAC_COLOR=always (or 1/true/yes/on)     colors ON, even if TERM says dumb
---   NO_COLOR (set to anything, convention)    colors OFF
+--   NO_COLOR (set to anything, even empty)    colors OFF
 --   default                                   ON, unless TERM is unset or 'dumb'
 -- stderr keeps all of this off stdout, where the workflow's own output lives.
 local _color_on = nil
 local function step_colors_on()
 	if _color_on ~= nil then return _color_on end
-	local mc = os.getenv("MAKAC_COLOR")
-	if mc ~= nil then
-		mc = mc:lower()
-		_color_on = (mc == "1" or mc == "true" or mc == "yes" or mc == "on" or mc == "always")
-		return _color_on
-	end
 	if os.getenv("NO_COLOR") ~= nil then _color_on = false return false end
 	local term = os.getenv("TERM")
 	_color_on = term ~= nil and term ~= "" and term ~= "dumb"
@@ -154,7 +146,8 @@ local function step_colors_on()
 end
 
 local CTRL = { reset = "\27[0m", bold = "\27[1m", dim = "\27[2m",
-	green = "\27[32m", yellow = "\27[33m", cyan = "\27[36m", red = "\27[1;31m" }
+	green = "\27[32m", yellow = "\27[33m", cyan = "\27[36m", red = "\27[1;31m",
+	blue = "\27[34m" }
 local function paint(text, ...)
 	if not step_colors_on() then return text end
 	return table.concat({ ... }) .. text .. CTRL.reset
@@ -1744,8 +1737,16 @@ local function _doctor_group()
 	local lines = {}
 	local count = { warn = 0, error = 0 }
 
+	-- status label colors: OK = success (green), ERROR = failure (red),
+	-- WARN = changed (yellow), INFO = neutral (blue), matching step reporting
+	local label_color = { OK = CTRL.green, INFO = CTRL.blue,
+		WARN = CTRL.yellow, ERROR = CTRL.red }
+
 	local function emit(label, msg, advice)
-		lines[#lines + 1] = ("  - %-5s %s"):format(label, tostring(msg))
+		local tag = ("%-5s"):format(label)
+		local color = label_color[label]
+		if color ~= nil then tag = paint(tag, color) end
+		lines[#lines + 1] = "  - " .. tag .. " " .. tostring(msg)
 		if advice ~= nil then
 			if type(advice) == "string" then advice = { advice } end
 			for _, a in ipairs(advice) do

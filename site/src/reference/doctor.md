@@ -60,6 +60,10 @@ finding:
 - `ERROR` — a real failure.
 - an `- ADVICE:` sub-line suggests what to do about a `WARN`/`ERROR`.
 
+The status label is colored — `OK` green, `WARN` yellow, `ERROR` red, `INFO`
+blue — subject to the same environment controls as step reporting
+(`NO_COLOR` and `TERM`; see the [step reference](step.md)).
+
 `health.start(name)` inside a check opens a sub-section (`~ name ~`).
 
 The exit status is non-zero iff any check reported an `ERROR`; warnings do not

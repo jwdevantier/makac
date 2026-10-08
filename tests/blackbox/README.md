@@ -39,7 +39,7 @@ The binary under test may also be given via `MAKAC_BIN`.
   (`ok` / `not ok` lines on stdout, exit 1 on any failure).
 - `lib/harness.lua` — tiny framework: suites/cases, assertions, per-case
   throwaway tmp dir, `ctx.run(...)` invoking the binary with
-  `MAKAC_COLOR=never` (deterministic stderr), output normalization
+  `NO_COLOR=1` (deterministic stderr), output normalization
   (`h.norm`: tmp paths -> `<TMP>`, step timings -> `(Ts)`).
 - `cases/<suite>.lua` — one file per suite. Each case names the doc contract
   it pins down.

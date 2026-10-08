@@ -43,5 +43,5 @@ MAKAC_API_SKIP=fs/write_read_roundtrip_with_nul_bytes makac run tests/api/run.lu
   action/fetcher names, and remember `close_all_targets()` closes even
   `makac.host` (order those cases last in the targets group).
 - `step` reports to stderr with colors when the outer run allows it —
-  cosmetic; pass `MAKAC_COLOR=never` for clean logs.
+  cosmetic; pass `NO_COLOR=1` for clean logs.
 - `path` values compare by identity (no `__eq`) — `tostring()` before `eq`.

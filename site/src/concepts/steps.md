@@ -90,10 +90,9 @@ failed: [host] doomed (0.0s)
 
 The statuses are `ok` (ran, unchanged), `changed`, `skipped`, and `failed`.
 Colors follow the usual conventions (green / yellow / cyan / red) and are
-controlled by the environment, with no flags: `MAKAC_COLOR=never` (or `0`,
-`false`, `no`, `off`) turns colors off; `MAKAC_COLOR=always` turns them on even
-when `TERM` says `dumb`; `NO_COLOR` (any value, per [no-color.org](https://no-color.org))
-turns them off; by default colors are on unless `TERM` is unset or `dumb`.
+controlled by the environment, with no flags: `NO_COLOR` (set at all, any
+value, per [no-color.org](https://no-color.org)) turns them off; by default
+colors are on unless `TERM` is unset or `dumb`.
 
 All reporting goes to stderr; **stdout stays reserved for the workflow's own
 output**, so piping the workflow's output works without makac's progress getting
