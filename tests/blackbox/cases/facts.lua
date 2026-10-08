@@ -1,3 +1,6 @@
+-- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier
+-- SPDX-License-Identifier: BSD-2-Clause
+--
 -- cases/facts.lua — the built-in `facts` action and fact finders.
 -- Contracts: site/src/concepts/facts.md, reference/actions.md ("facts").
 

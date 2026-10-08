@@ -1,3 +1,6 @@
+-- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier
+-- SPDX-License-Identifier: BSD-2-Clause
+--
 -- makac_project.lua — this project's dependency wiring.
 --
 -- 'inputs' says where each package comes from. The key is a local LABEL for

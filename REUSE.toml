@@ -1,0 +1,20 @@
+version = 1
+
+# Non-code material — build configuration, CI, repository documentation, the
+# mdBook site, and test prose — is dedicated to the public domain under
+# CC0-1.0, matching the reference project. Source files carry explicit
+# BSD-2-Clause headers and are deliberately NOT listed here (in-file tags
+# always win over annotations).
+[[annotations]]
+path = [
+  ".gitignore",
+  "flake.lock",
+  "*.nix",
+  ".github/**",
+  "docs/**",
+  "site/**",
+  "**/README.md",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Jesper Wendel Devantier"
+SPDX-License-Identifier = "CC0-1.0"

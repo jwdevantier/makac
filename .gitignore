@@ -3,3 +3,9 @@
 .zig-cache/
 zig-out/
 zig-pkg/
+dist/
+release/
+site/book/
+implementation-todo-list.md
+undefined
+undefined.lock

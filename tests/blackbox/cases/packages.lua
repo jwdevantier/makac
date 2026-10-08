@@ -1,3 +1,6 @@
+-- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier
+-- SPDX-License-Identifier: BSD-2-Clause
+--
 -- cases/packages.lua — the package/fetch machinery end to end, hermetically:
 -- filesystem + fetchgit (against LOCAL git repos) fetchers, content-addressed
 -- storage + prune, the fetch worklist with package-provided fetchers,

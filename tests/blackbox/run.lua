@@ -1,4 +1,7 @@
 #!/usr/bin/env makac
+-- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier
+-- SPDX-License-Identifier: BSD-2-Clause
+--
 -- tests/blackbox/run.lua — black-box test suite driving a makac binary.
 --
 --   makac tests/blackbox/run.lua [binary-under-test]
@@ -10,10 +13,18 @@ package.path = SCRIPT_DIR .. "/lib/?.lua;" .. SCRIPT_DIR .. "/cases/?.lua;" .. p
 
 local harness = require("harness")
 
--- resolve a bare command name via PATH to an absolute path, so the binary
--- under test is deterministic regardless of the cases' working directories.
+-- resolve the binary under test to an absolute path, so it stays valid
+-- regardless of the per-case working directory: ctx.run chdir's the child to
+-- a throwaway tmp dir, and a relative argv[0] would otherwise be resolved
+-- against THAT directory (both the reference and the port exec a relative
+-- path after chdir).
 local function resolve(bin)
-	if bin:find("/", 1, true) then return bin end
+	if bin:find("/", 1, true) then
+		if bin:sub(1, 1) == "/" then return bin end
+		local pwd = (makac.exec({ "pwd" }).stdout or ""):gsub("%s+$", "")
+		if pwd == "" then error("cannot determine cwd to resolve binary: " .. bin) end
+		return pwd .. "/" .. bin
+	end
 	for dir in (os.getenv("PATH") or ""):gmatch("[^:]+") do
 		local p = dir .. "/" .. bin
 		local st = makac.fs.stat(p) -- lstat: accept plain files and symlinks

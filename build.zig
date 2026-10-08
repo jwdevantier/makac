@@ -1,3 +1,4 @@
+// SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier
 // SPDX-License-Identifier: BSD-2-Clause
 const std = @import("std");
 
@@ -37,12 +38,20 @@ pub fn build(b: *std.Build) void {
 // All of lua's src/*.c except the two with main() (lua.c, luac.c) and
 // onelua.c — the classic embedder list.
 const lua_sources = .{
-    "lauxlib.c", "lbaselib.c", "lcorolib.c", "ldblib.c",   "liolib.c",
+    "lauxlib.c",  "lbaselib.c", "lcorolib.c", "ldblib.c",  "liolib.c",
     "lmathlib.c", "loadlib.c",  "loslib.c",   "lstrlib.c", "ltablib.c",
     "lutf8lib.c", "lapi.c",     "lcode.c",    "lctype.c",  "ldebug.c",
     "ldo.c",      "ldump.c",    "lfunc.c",    "lgc.c",     "llex.c",
     "linit.c", // <-- luaL_openlibs lives here; omit it and you link-fail
-    "lmem.c",     "lobject.c",  "lopcodes.c", "lparser.c", "lstate.c",
-    "lstring.c",  "ltable.c",   "ltm.c",      "lundump.c", "lvm.c",
+    "lmem.c",
+    "lobject.c",
+    "lopcodes.c",
+    "lparser.c",
+    "lstate.c",
+    "lstring.c",
+    "ltable.c",
+    "ltm.c",
+    "lundump.c",
+    "lvm.c",
     "lzio.c",
 };

@@ -1,3 +1,6 @@
+-- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier
+-- SPDX-License-Identifier: BSD-2-Clause
+--
 -- cases/primitives.lua — the host-provided makac.* primitives, one exercised
 -- case each, through the CLI. These are the functions the Zig port must
 -- provide to the embedded Lua VM; the DSL on top of them is prelude.lua

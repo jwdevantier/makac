@@ -1,3 +1,6 @@
+-- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier
+-- SPDX-License-Identifier: BSD-2-Clause
+--
 -- cases/steps.lua — step semantics: immediate execution, ordering, reporting
 -- (stderr-only, statuses, colors), failure aborts the workflow.
 -- Contracts: site/src/concepts/steps.md, reference/step.md.

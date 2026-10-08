@@ -1,3 +1,6 @@
+-- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier
+-- SPDX-License-Identifier: BSD-2-Clause
+--
 -- cases/download.lua — makac.download + the fetchurl fetcher over a loopback
 -- HTTP server (python3 http.server serving per-case fixture files). Hermetic:
 -- loopback only. Covers URL-keyed caching, checksum verification (match,

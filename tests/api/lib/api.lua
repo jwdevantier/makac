@@ -1,3 +1,6 @@
+-- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier
+-- SPDX-License-Identifier: BSD-2-Clause
+--
 -- lib/api.lua — in-VM conformance framework for the makac API.
 --
 -- Runs INSIDE the binary under test ('makac run tests/api/run.lua'), so a

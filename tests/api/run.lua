@@ -1,4 +1,7 @@
 #!/usr/bin/env makac
+-- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier
+-- SPDX-License-Identifier: BSD-2-Clause
+--
 -- tests/api/run.lua — in-VM conformance suite for the makac API.
 --
 --   <binary-under-test> run tests/api/run.lua

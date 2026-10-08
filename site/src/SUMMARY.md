@@ -1,0 +1,30 @@
+<!-- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier -->
+<!-- SPDX-License-Identifier: CC0-1.0 -->
+
+# Summary
+
+- [Introduction](intro.md)
+- [Installation](installation.md)
+- [Getting Started](getting-started.md)
+- [Concepts](concepts/index.md)
+  - [Workflows](concepts/workflows.md)
+  - [Steps](concepts/steps.md)
+  - [Actions](concepts/actions.md)
+  - [Targets](concepts/targets.md)
+  - [Facts](concepts/facts.md)
+  - [Project directory](concepts/project-directory.md)
+  - [Packages](concepts/packages.md)
+- [Reference](reference/index.md)
+  - [CLI](reference/cli.md)
+  - [Doctor](reference/doctor.md)
+  - [Step specification](reference/step.md)
+  - [Built-in actions](reference/actions.md)
+  - [Targets](reference/target.md)
+  - [Fetchers](reference/fetchers.md)
+- [Lua API](lua-api/index.md)
+  - [Makac API](lua-api/makac-api.md)
+  - [The workflow DSL](lua-api/workflow-dsl.md)
+- [Examples](examples/index.md)
+  - [A simple workflow](examples/simple.md)
+  - [QEMU + NVMe: boot, snapshot, hotplug, test](examples/qemu-nvme.md)
+- [The makac QEMU package](qemu-package.md)

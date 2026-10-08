@@ -1,3 +1,6 @@
+-- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier
+-- SPDX-License-Identifier: BSD-2-Clause
+--
 -- specs/surface.lua — presence meta-test: every documented API name exists
 -- with the promised Lua type. Catches whole missing registrations at a
 -- glance (especially valuable while the Zig port registers incrementally).

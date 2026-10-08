@@ -1,3 +1,6 @@
+-- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier
+-- SPDX-License-Identifier: BSD-2-Clause
+--
 -- specs/project.lua — the package/project machinery against an in-tmp
 -- fixture project: read_project_file, project_root/project_file_path,
 -- resolve_fetcher/resolve_pkg_dir, load_packages, package_info, pkg_dirs,

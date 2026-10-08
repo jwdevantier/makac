@@ -1,0 +1,193 @@
+# SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier
+# SPDX-License-Identifier: CC0-1.0
+name: Release
+
+# Released by hand from the Actions tab: supply MAJOR and MINOR, and the
+# workflow cross-compiles the static musl targets with Zig on a single runner,
+# rewrites the version constants in src/version.zig, commits
+# "release: MAJOR.MINOR", tags vMAJOR.MINOR, and publishes a GitHub Release
+# with the binaries.
+#
+# The build runs before anything is committed or tagged, so a failed build
+# leaves git untouched.
+on:
+  workflow_dispatch:
+    inputs:
+      major:
+        description: "MAJOR version (integer)"
+        required: true
+        type: number
+      minor:
+        description: "MINOR version (integer)"
+        required: true
+        type: number
+      dry_run:
+        description: "Build only: skip the version bump, tag, and release"
+        required: false
+        type: boolean
+        default: false
+
+# GITHUB_TOKEN needs to push the version-bump commit and create the release.
+# Note that a push made with GITHUB_TOKEN does not trigger other workflows.
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: build release artifacts
+    # Zig cross-compiles from one host to both musl targets below, so a single
+    # amd64 runner is enough; there is no per-architecture container matrix.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Zig 0.16.0
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+
+      - name: Cache Zig
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/zig
+          key: zig-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('build.zig.zon') }}
+          restore-keys: zig-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Validate version inputs
+        env:
+          MAJOR: ${{ inputs.major }}
+          MINOR: ${{ inputs.minor }}
+        run: |
+          for v in "$MAJOR" "$MINOR"; do
+            if ! [[ "$v" =~ ^(0|[1-9][0-9]*)$ ]]; then
+              echo "::error::version component '$v' is not a non-negative integer"
+              exit 1
+            fi
+          done
+
+      # Bake the requested pair into the (uncommitted) working tree so the
+      # binaries report it; the release job performs the same rewrite as a
+      # commit once the build has succeeded.
+      - name: Bake the release version
+        env:
+          MAJOR: ${{ inputs.major }}
+          MINOR: ${{ inputs.minor }}
+        run: ./scripts/bump-version.sh "$MAJOR" "$MINOR"
+
+      - name: Unit tests
+        run: zig build test
+
+      - name: Build every release target
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          # Static musl is the shipping shape: zero runtime link deps, so the
+          # artifacts run anywhere without a loader. (The gnu cross path is
+          # still available via docs/usage.md; we just don't ship it.)
+          for spec in \
+            "x86_64-musl:x86_64-linux-musl" \
+            "aarch64-musl:aarch64-linux-musl"
+          do
+            name="${spec%%:*}"
+            target="${spec##*:}"
+            echo "::group::zig build -Dtarget=$target"
+            zig build -Dtarget="$target" -Doptimize=ReleaseSafe --prefix "dist/$name"
+            cp "dist/$name/bin/makac" "release/makac-linux-$name"
+            (cd release && sha256sum "makac-linux-$name" > "makac-linux-$name.sha256")
+            file "release/makac-linux-$name"
+            echo "::endgroup::"
+          done
+
+      - name: Verify the artifacts report the release version
+        env:
+          VERSION: ${{ inputs.major }}.${{ inputs.minor }}
+        run: |
+          set -euo pipefail
+          # The x86_64 static artifact runs natively on this runner.
+          test "$(./release/makac-linux-x86_64-musl --version)" = "$VERSION"
+
+      - name: Install test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openssh-server netcat-openbsd
+          sudo mkdir -p /run/sshd
+
+      # Hold the actual release artifact (static musl, the preferred shape) to
+      # the same conformance bar as CI: full black-box suite self-hosted, plus
+      # the in-VM Lua API suite.
+      - name: Conformance against the release artifact (x86_64-musl)
+        run: |
+          set -euo pipefail
+          BIN="$PWD/release/makac-linux-x86_64-musl"
+          "$BIN" tests/blackbox/run.lua "$BIN"
+          "$BIN" run tests/api/run.lua
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-binaries
+          path: release/*
+          if-no-files-found: error
+
+  release:
+    name: bump, tag, release
+    # A dry run builds the binaries above but stops before touching git or
+    # publishing anything.
+    if: ${{ !inputs.dry_run }}
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - name: Bump version, commit, tag
+        env:
+          MAJOR: ${{ inputs.major }}
+          MINOR: ${{ inputs.minor }}
+        run: |
+          set -euo pipefail
+          version="${MAJOR}.${MINOR}"
+          tag="v${version}"
+
+          for v in "$MAJOR" "$MINOR"; do
+            if ! [[ "$v" =~ ^(0|[1-9][0-9]*)$ ]]; then
+              echo "::error::version component '$v' is not a non-negative integer"
+              exit 1
+            fi
+          done
+
+          if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
+            echo "::error::tag ${tag} already exists"
+            exit 1
+          fi
+
+          ./scripts/bump-version.sh "$MAJOR" "$MINOR"
+          if git diff --quiet; then
+            echo "::error::src/version.zig is already at ${version}; nothing to release"
+            exit 1
+          fi
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "release: ${version}"
+          git tag -a "${tag}" -m "release: ${version}"
+          # Atomic: the branch commit and its tag land together (or not at all).
+          git push --atomic origin "HEAD:${GITHUB_REF_NAME}" "refs/tags/${tag}"
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ inputs.major }}.${{ inputs.minor }}
+          files: artifacts/**
+          generate_release_notes: true

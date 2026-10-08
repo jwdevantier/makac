@@ -1,3 +1,6 @@
+-- SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier
+-- SPDX-License-Identifier: BSD-2-Clause
+--
 -- specs/prelude.lua — the embedded-prelude DSL: defer/errdefer, the action
 -- registry, step normalization, target wrappers and lifecycle.
 -- Contracts: site/src/lua-api/workflow-dsl.md, concepts/targets.md,

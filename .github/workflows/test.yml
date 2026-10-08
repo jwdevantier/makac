@@ -1,0 +1,181 @@
+# SPDX-FileCopyrightText: 2026 Jesper Wendel Devantier
+# SPDX-License-Identifier: CC0-1.0
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Superseded runs on the same ref are cancelled so a rapid stream of pushes
+# does not queue up stale test runs.
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Native build + the full hermetic test battery, per architecture. This is
+  # the Zig toolchain doing its normal job — no cross-OS containers, no
+  # toolchain download beyond Zig itself.
+  test:
+    name: test (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: amd64
+            runner: ubuntu-24.04
+          - target: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Zig 0.16.0
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+
+      # build.zig.zon fetches the hash-pinned Lua sources; the Zig global
+      # cache holds both the compiler cache and the fetched package.
+      - name: Cache Zig
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/zig
+          key: zig-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('build.zig.zon') }}
+          restore-keys: zig-${{ runner.os }}-${{ runner.arch }}-
+
+      # The black-box and API suites are hermetic, but two black-box suites
+      # auto-detect extra tools: ssh_real needs sshd + ssh-keygen, and the
+      # qmp/download suites need python3. python3/git/curl ship with the
+      # runner image; add the OpenSSH server (and netcat, used to find a free
+      # port) explicitly.
+      - name: Install test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openssh-server netcat-openbsd
+          sudo mkdir -p /run/sshd
+
+      - name: Build
+        run: zig build
+
+      - name: Version
+        run: ./zig-out/bin/makac --version
+
+      # Module-level Zig unit tests (the analogue of `odin test ./...`).
+      - name: Unit tests
+        run: zig build test
+
+      # Black-box CLI conformance, fully self-hosted: the Zig binary runs the
+      # harness *and* is the binary under test. Suites that need sshd/python3
+      # auto-skip when unavailable, but the runner has them.
+      - name: Black-box CLI conformance (self-hosted)
+        run: ./zig-out/bin/makac tests/blackbox/run.lua ./zig-out/bin/makac
+
+      # In-VM Lua API conformance.
+      - name: Lua API conformance
+        run: ./zig-out/bin/makac run tests/api/run.lua
+
+  # Cross-compilation is the Zig selling point: one Linux runner emits the
+  # static musl release shape. Build it on every push so a cross-only
+  # regression is caught before release time, and smoke the same-arch
+  # artifact.
+  cross:
+    name: cross-compile (musl targets)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Zig 0.16.0
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+
+      - name: Cache Zig
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/zig
+          key: zig-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('build.zig.zon') }}
+          restore-keys: zig-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Build the release targets
+        run: |
+          set -euo pipefail
+          for target in x86_64-linux-musl aarch64-linux-musl; do
+            echo "::group::zig build -Dtarget=$target"
+            zig build -Dtarget="$target" -Doptimize=ReleaseSafe --prefix "dist/$target"
+            file "dist/$target/bin/makac"
+            echo "::endgroup::"
+          done
+
+      - name: Same-arch artifact runs
+        run: ./dist/x86_64-linux-musl/bin/makac --version
+
+  # The packaging path consumers actually use (nvme-check wires
+  # `makac.packages.${system}.makac`). `nix build` exercises the flake output
+  # end to end — including `zig.fetchDeps` and the package's check phase (the
+  # unit battery) — and the same hermetic suites run against the store
+  # artifact, so it is held to the same bar as the direct build.
+  flake:
+    name: flake (x86_64-linux)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+
+      - name: Cache Nix store
+        uses: nix-community/cache-nix-action@v7
+        with:
+          primary-key: nix-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.lock', 'flake.nix') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-${{ runner.arch }}-
+          gc-max-store-size-linux: 5G
+
+      - name: Build makac from the flake
+        run: |
+          nix build .#makac --print-build-logs
+          ./result/bin/makac --version
+
+      - name: Install test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openssh-server netcat-openbsd
+          sudo mkdir -p /run/sshd
+
+      - name: Black-box CLI conformance (flake artifact, self-hosted)
+        run: ./result/bin/makac tests/blackbox/run.lua "$PWD/result/bin/makac"
+
+      - name: Lua API conformance (flake artifact)
+        run: ./result/bin/makac run tests/api/run.lua
+
+  # REUSE license compliance (https://reuse.software): every file carries an
+  # SPDX copyright + license tag, or is covered by REUSE.toml. Runs through the
+  # flake's pinned `lint` dev shell via scripts/reuse-check.sh, so CI and local
+  # runs use exactly the same tool and version.
+  lint:
+    name: REUSE compliance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+
+      - name: Cache Nix store
+        uses: nix-community/cache-nix-action@v7
+        with:
+          primary-key: nix-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.lock', 'flake.nix') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-${{ runner.arch }}-
+          gc-max-store-size-linux: 5G
+
+      - name: REUSE lint (pinned via the flake dev shell)
+        run: ./scripts/reuse-check.sh
