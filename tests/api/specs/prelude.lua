@@ -111,6 +111,41 @@ api.t("step", "default_name_and_normalized_result", function()
 	api.contains(tostring(err), "apitest_failer", "names the action")
 end)
 
+api.t("step", "with_silent_steps_scope_and_aborts", function()
+	-- an action that itself runs a step (the third-party nesting case)
+	makac.define_action("apitest_nested_step", function()
+		return step { uses = "apitest_echo", with = { msg = "inner" } }
+	end)
+	local r1, r2 = makac.with_silent_steps(function()
+		local a = step { uses = "apitest_nested_step" }
+		local b = step { uses = "apitest_echo", with = { msg = "x" } }
+		return a.out.got, b.out.got
+	end)
+	api.eq(r1, "inner", "nested steps inside actions still execute; only reporting is silenced")
+	api.eq(r2, "x", "multi-return passthrough")
+	-- nested bindings just nest
+	local r3 = makac.with_silent_steps(function()
+		return makac.with_silent_steps(function()
+			return step { uses = "apitest_echo", with = { msg = "deep" } }.out.got
+		end)
+	end)
+	api.eq(r3, "deep", "nested silent scopes compose")
+	-- a raise inside restores the binding and propagates unmodified
+	local err = api.raises(function()
+		makac.with_silent_steps(function() error("boom", 0) end)
+	end, "boom", "raise propagates")
+	-- and an aborting step inside is still an aborting step
+	local err2 = api.raises(function()
+		makac.with_silent_steps(function()
+			step { name = "silent-doom", uses = "apitest_failer" }
+		end)
+	end, nil, "err result still aborts the workflow, silently")
+	api.contains(tostring(err2), "silent-doom", "abort names the step even when silenced")
+	-- binding unwound: plain steps behave as before
+	local r4 = step { uses = "apitest_echo", with = { msg = "after" } }
+	api.eq(r4.out.got, "after", "binding restored after the silent scope")
+end)
+
 api.group("targets")
 
 api.t("targets", "host_target_basics", function()

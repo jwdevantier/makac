@@ -153,8 +153,15 @@ local function paint(text, ...)
 	return table.concat({ ... }) .. text .. CTRL.reset
 end
 
+-- with_silent_steps: a DYNAMIC binding. While > 0, NO step reports anything —
+-- including steps an action launches itself (e.g. dots:apply dispatching one
+-- step per file) or steps launched by actions from other packages. Nested
+-- bindings just nest; errors unwind the depth before propagating.
+local _step_report_silent = 0
+
 -- one report line: `<status>: [<target>] <name>` optionally with elapsed
 local function step_report(kind, tname, name, elapsed_s)
+	if _step_report_silent > 0 then return end
 	local line = ("%s: [%s] %s"):format(kind, tname, name)
 	if elapsed_s ~= nil then
 		line = line .. paint((" (%.1fs)"):format(elapsed_s), CTRL.dim)
@@ -234,6 +241,21 @@ function step(spec)
 	step_report(res.skipped and "skipped" or (res.changed and "changed" or "ok"),
 		tname, name, elapsed_s())
 	return res
+end
+
+--- Run fn(...) with ALL step reporting suppressed — a dynamically bound
+--- scope (dynamic extent, not lexical): any step started while fn runs,
+--- anywhere in the call tree (nested steps, package actions driving other
+--- actions), reports nothing. Execution is unaffected: results and abort
+--- semantics are unchanged. A raise in fn restores the outer state and
+--- propagates unmodified. Returns fn's own returns.
+function makac.with_silent_steps(fn, ...)
+	assert(type(fn) == "function", "makac.with_silent_steps: fn must be a function")
+	_step_report_silent = _step_report_silent + 1
+	local rs = table.pack(pcall(fn, ...))
+	_step_report_silent = _step_report_silent - 1
+	if not rs[1] then error(rs[2], 0) end
+	return table.unpack(rs, 2, rs.n)
 end
 
 -- Built-in `shell` action (design/action_shell.md): runs `with.cmd` on the

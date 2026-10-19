@@ -97,3 +97,21 @@ The status is `ok` (ran, unchanged), `changed`, `skipped`, or `failed`; the
 are environment-controlled: `NO_COLOR` (set to anything, even the empty string)
 disables them, and by default they are on unless `TERM` is unset or `dumb`.
 stdout stays reserved for the workflow's own output.
+
+### Silencing: `makac.with_silent_steps(fn, ...)`
+
+`with_silent_steps` runs `fn` with **all** step reporting suppressed — a
+dynamically bound scope, so any step started anywhere inside `fn` reports
+nothing, including steps an action launches itself (e.g. `dots:apply`
+dispatching one step per file) and steps launched by third-party actions.
+Execution is unaffected: results are returned (`with_silent_steps` passes
+`fn`'s returns through) and failures still abort the workflow. A raise
+restores the outer state; bindings nest. Use it when a CLI drives actions
+and wants to print its own formatted output instead of progress lines:
+
+```lua
+local r = makac.with_silent_steps(function()
+  return step { uses = "dots:apply", with = { root = "tree", dest = "~" } }
+end)
+print(("changed=%d failed=%d"):format(#r.out.changed, #r.out.failed))
+```

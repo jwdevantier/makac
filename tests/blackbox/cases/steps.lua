@@ -111,3 +111,30 @@ h.case("steps", "colors_on_by_default_when_no_color_unset", function(ctx)
 	h.eq(r.code, 0, "exit code: " .. r.stderr)
 	h.contains(r.stderr, "\27", "colors on by default when NO_COLOR is unset")
 end)
+
+h.case("steps", "with_silent_steps_suppresses_all_reporting", function(ctx)
+	ctx.write("silent.lua", [[
+-- a custom action that launches its own steps (the third-party nesting case)
+makac.define_action("nested", function()
+  step { name = "inner-one", uses = "shell", with = { cmd = { "true" } } }
+  step { name = "inner-two", uses = "shell", with = { cmd = { "true" } } }
+  return {}
+end)
+step { name = "heard-one", uses = "shell", with = { cmd = { "true" } } }
+local v = makac.with_silent_steps(function()
+  step { name = "muted-one", uses = "shell", with = { cmd = { "true" } } }
+  step { name = "muted-nested", uses = "nested" }
+  return "payload"
+end)
+print("got:" .. v)
+step { name = "heard-two", uses = "shell", with = { cmd = { "true" } } }
+]])
+	local r = ctx.run({ "run", "silent.lua" })
+	h.eq(r.code, 0, "exit code: " .. r.stderr)
+	h.contains(r.stdout, "got:payload", "return values pass through the scope")
+	h.matches(r.stderr, "heard%-one", "step before the scope reports")
+	h.not_contains(r.stderr, "muted%-one", "steps inside the scope report nothing")
+	h.not_contains(r.stderr, "muted%-nested", "a step over a nesting action reports nothing")
+	h.not_contains(r.stderr, "inner%-one", "steps launched BY an action report nothing too")
+	h.matches(r.stderr, "heard%-two", "step after the scope reports again")
+end)

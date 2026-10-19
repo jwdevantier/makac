@@ -189,6 +189,7 @@ arg = nil
 ---@field qmp_open fun(vm: any): any
 ---@field defer fun(fn: fun()): any
 ---@field errdefer fun(fn: fun(err: any)): any
+---@field with_silent_steps fun(fn: function, ...): any # dynamically scoped: no step reports while fn runs (incl. nested/third-party steps)
 ---@field fs MakacFs
 ---@field time MakacTime
 ---@field env MakacEnv

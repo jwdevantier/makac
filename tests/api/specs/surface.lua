@@ -62,6 +62,7 @@ local EXPECTED = {
 	-- prelude: scoped cleanup
 	["makac.defer"] = "function",
 	["makac.errdefer"] = "function",
+	["makac.with_silent_steps"] = "function",
 	-- prelude: registries
 	["makac.define_action"] = "function",
 	["makac.run_action"] = "function",
