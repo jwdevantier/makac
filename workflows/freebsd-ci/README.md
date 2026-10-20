@@ -24,10 +24,14 @@ makac run freebsd-ci.lua
 ```
 
 Tools needed on `PATH`: `qemu-system-x86_64` (or set `QEMU_BIN`),
-`qemu-img`, `genisoimage`, `xz`, `ssh`. KVM is used when `/dev/kvm` is
-available, plain emulation otherwise (slow but fine). An ssh keypair must
-exist at `~/.ssh/id_ed25519` (or `id_rsa`) — the public half is installed
-on the guest.
+`qemu-img`, `genisoimage`, `xz`, `ssh`, `scp`. KVM is used when `/dev/kvm`
+is available, plain emulation otherwise (slow but fine). An ssh keypair
+must exist at `~/.ssh/id_ed25519` (or `id_rsa`) — the public half is
+installed on the guest. Missing tools are reported up front (the workflow
+preflights them), before the image build starts.
+
+Note that the repo's `nix develop` shell does **not** provide QEMU; use the
+`nix shell` line below (or install QEMU) when running this workflow.
 
 On NixOS, without installing anything:
 
