@@ -286,6 +286,25 @@ pub const VM = struct {
         }
         return @intCast(lua.toInteger(L, -1));
     }
+
+    /// Call the one-string-argument Lua function named by a dot path and
+    /// return its string result (duped on the VM's allocator; the caller
+    /// frees it). Returns null when the function cannot be resolved or when
+    /// it returns nil/a non-string; `error.LuaError` when it raises (see
+    /// `lastError()`).
+    pub fn callStringString(self: *VM, name: []const u8, arg: []const u8) !?[:0]u8 {
+        const L = self.L;
+        const top = lua.gettop(L);
+        defer lua.settop(L, top);
+        if (!self.pushNamed(name)) return null;
+        lua.pushLString(L, arg);
+        if (lua.pcall(L, 1, 1, 0) != lua.OK) {
+            self.captureError();
+            return error.LuaError;
+        }
+        const s = lua.toLString(L, -1) orelse return null;
+        return try self.allocator.dupeZ(u8, s);
+    }
 };
 
 // Fail loudly rather than OOM on a runaway script, but be generous.

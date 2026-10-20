@@ -1354,6 +1354,10 @@ table.insert(package.searchers, 1, pkgs_searcher)
 -- packages with the 'filesystem' fetcher (load-in-place development).
 makac.pkg_dirs = makac.pkg_dirs or {}
 
+-- Scripts exported by each loaded package: alias -> { name -> absolute path }.
+-- Populated in makac.load_packages alongside makac.pkg_dirs.
+makac.pkg_scripts = makac.pkg_scripts or {}
+
 -- The code roots of all loaded/wired packages, for the './' searcher.
 -- Populated alongside makac.pkg_dirs.
 makac.pkg_roots = makac.pkg_roots or {}
@@ -1433,6 +1437,34 @@ function makac._read_pkg_manifest(key, dir)
 		end
 	end
 	return exports
+end
+
+-- Validate a manifest's 'scripts' table (name -> path relative to the package
+-- root) and resolve each entry to an absolute path. Returns nil when the
+-- package exports no scripts.
+local function _validate_scripts(key, dir, scripts)
+	if scripts == nil then return nil end
+	if type(scripts) ~= "table" then
+		error(("makac: package '%s': manifest 'scripts' must be a table of name -> path (relative to the package root), got %s"):format(key, type(scripts)), 0)
+	end
+	local out = {}
+	for name, path in pairs(scripts) do
+		if type(name) ~= "string" or name == "" or name:find("[/:]") then
+			error(("makac: package '%s': script name %s must be a non-empty string without '/' or ':'"):format(key, tostring(name)), 0)
+		end
+		if type(path) ~= "string" or path == "" then
+			error(("makac: package '%s': script '%s': path must be a non-empty string, got %s"):format(key, name, type(path)), 0)
+		end
+		if path:sub(1, 1) == "/" or path:find("%.%.") then
+			error(("makac: package '%s': script '%s': path '%s' must be relative to the package root (no leading '/', no '..')"):format(key, name, path), 0)
+		end
+		local full = dir .. "/" .. (path:gsub("^%./", ""))
+		if makac.fs.stat(full) == nil then
+			error(("makac: package '%s': script '%s': no file '%s'"):format(key, name, full), 0)
+		end
+		out[name] = full
+	end
+	return out
 end
 
 -- Validate one manifest export kind ('actions'/'fetchers') and merge it into
@@ -1614,6 +1646,12 @@ function makac.load_packages(data_dir)
 		for _, label in ipairs(round) do
 			local dir = makac.pkg_dirs[label_aliases[label][1]]
 			local exports = makac._read_pkg_manifest(label, dir)
+			local scripts = _validate_scripts(label, dir, exports.scripts)
+			if scripts ~= nil then
+				for _, alias in ipairs(label_aliases[label]) do
+					makac.pkg_scripts[alias] = scripts
+				end
+			end
 			for _, alias in ipairs(label_aliases[label]) do
 				_merge_exports(alias, label, "actions", exports, makac.registry.actions, pre)
 				-- fetch_all already merged this alias's fetchers if it fetched
@@ -1636,6 +1674,35 @@ function makac.load_packages(data_dir)
 		error(findings[1].message, 0)
 	end
 	return #aliases
+end
+
+-- Resolve a `makac run` reference against the loaded packages' exported
+-- scripts: '<alias>' runs the package's 'default' script, '<alias>.<script>'
+-- a named one. Returns the script's absolute path, or nil when the token
+-- names no wired package (the caller then falls back to treating it as a
+-- plain file path). Raises with the package's exports when the alias matches
+-- but the script doesn't.
+function makac._resolve_script(tok)
+	local alias, name = tok:match("^([%w_%-]+)%.(.+)$")
+	if not alias then
+		alias = tok
+		name = "default"
+	end
+	local scripts = makac.pkg_scripts and makac.pkg_scripts[alias]
+	if scripts == nil then
+		if makac.pkg_dirs and makac.pkg_dirs[alias] ~= nil then
+			error(("makac: package '%s' exports no scripts (add a 'scripts' table to its makac_package.lua)"):format(alias), 0)
+		end
+		return nil -- not a package alias
+	end
+	local path = scripts[name]
+	if path == nil then
+		local names = {}
+		for k in pairs(scripts) do names[#names + 1] = k end
+		table.sort(names)
+		error(("makac: unknown script '%s' for package '%s' -- exported scripts: %s"):format(tok, alias, table.concat(names, ", ")), 0)
+	end
+	return path
 end
 
 -- Read-only description of a loaded package, keyed by alias — or nil when
@@ -1917,6 +1984,15 @@ function makac._doctor(names)
 				-- so the check can require(pkg_name .. "/...") its own lib/
 				makac.pkg_dirs[a.alias] = dir
 				makac.pkg_roots[#makac.pkg_roots + 1] = dir
+				local scripts = makac.pkg_scripts and makac.pkg_scripts[a.alias]
+				if type(scripts) == "table" then
+					local names = {}
+					for k in pairs(scripts) do names[#names + 1] = k end
+					table.sort(names)
+					if #names > 0 then
+						health.info("scripts: " .. table.concat(names, ", "))
+					end
+				end
 				local hpath = dir .. "/health.lua"
 				if makac.fs.stat(hpath) == nil then
 					health.info("no health checks implemented for this package.")

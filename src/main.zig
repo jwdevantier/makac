@@ -13,7 +13,7 @@ const USAGE =
     \\
     \\commands:
     \\  init <path>                  initialize a .makac data directory
-    \\  run <workflow> [args...]     run a workflow file
+    \\  run <workflow> [args...]     run a workflow file or a package script ('<alias>[.<script>]')
     \\  fetch                        fetch packages listed in makac_project.lua
     \\  doctor [name...]             report the health of makac and its packages
     \\
@@ -21,7 +21,9 @@ const USAGE =
     \\run ('makac foo.lua a b c' is 'makac run foo.lua a b c'). Arguments after
     \\the workflow are passed to it in the global 'arg' table; the script also
     \\sees the globals SCRIPT_DIR (its own directory) and PROJECT_DIR (the root
-    \\holding .makac and makac_project.lua).
+    \\holding .makac and makac_project.lua). A workflow argument naming no
+    \\existing file is tried as a package script reference: '<alias>' runs the
+    \\package's 'default' script, '<alias>.<script>' a named one.
     \\
     \\A workflow may also run directly via a shebang line ('#!/usr/bin/env makac').
     \\Outside a project (no '.makac'/'.git' ancestor) workflows run without a
@@ -39,7 +41,7 @@ const version_flag = ap.Flag{
 };
 
 var init_cmd = ap.Command{ .name = "init", .help = "initialize a .makac data directory" };
-var run_cmd = ap.Command{ .name = "run", .help = "run a workflow file" };
+var run_cmd = ap.Command{ .name = "run", .help = "run a workflow file or a package script ('<alias>[.<script>]')" };
 var fetch_cmd = ap.Command{ .name = "fetch", .help = "fetch packages listed in makac_project.lua" };
 var doctor_cmd = ap.Command{ .name = "doctor", .help = "report the health of makac and its packages" };
 
@@ -363,6 +365,14 @@ fn fileExists(io: std.Io, path: []const u8) bool {
     return true;
 }
 
+/// True only for a regular file: a same-named directory must not win the
+/// file-first rule against a package script reference ('run pk' beside a
+/// local pk/ directory is a package lookup, not a file run).
+fn regularFileExists(io: std.Io, path: []const u8) bool {
+    const st = std.Io.Dir.cwd().statFile(io, path, .{ .follow_symlinks = true }) catch return false;
+    return st.kind == .file;
+}
+
 /// Resolve the data directory from the CWD and run the workflow. Outside a
 /// project the script simply runs data-dir-less: PROJECT_DIR is left nil.
 fn runScript(
@@ -419,7 +429,24 @@ fn runScriptInVm(
         };
     }
 
-    vm.runFile(script, script_args) catch {
+    // Resolve a workflow argument naming no existing file against the loaded
+    // packages' exported scripts ('<alias>' -> its 'default' script,
+    // '<alias>.<script>' -> a named one).
+    var owned_target: ?[:0]u8 = null;
+    defer if (owned_target) |t| allocator.free(t);
+    var target: []const u8 = script;
+    if (data_dir.len > 0 and !regularFileExists(io, script)) {
+        const resolved = vm.callStringString("makac._resolve_script", script) catch {
+            reportError(io, vm.lastError());
+            return 1;
+        };
+        if (resolved) |t| {
+            owned_target = t;
+            target = t;
+        }
+    }
+
+    vm.runFile(target, script_args) catch {
         reportError(io, vm.lastError());
         return 1;
     };

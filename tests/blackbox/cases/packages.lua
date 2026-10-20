@@ -370,3 +370,97 @@ print("deep: " .. r.out.v)
 	h.eq(r.code, 0, "run exit: " .. r.stderr)
 	h.contains(r.stdout, "deep: deep", "packages loaded via walk-up from a subdir")
 end)
+
+-- --- exported scripts -----------------------------------------------------------
+
+local PROJ_SCRIPTS = [[
+return {
+  inputs = { src = { fetcher = "filesystem", with = { path = "pk" } } },
+  packages = { pk = "src" },
+}
+]]
+
+h.case("packages", "run_pkg_scripts", function(ctx)
+	pkg(ctx, "proj/pk", [[
+return {
+  actions = {},
+  scripts = {
+    default = "./cli.lua",
+    who = "./who.lua",
+  },
+}
+]], {
+		["cli.lua"] = [[
+print("pdir=" .. tostring(PROJECT_DIR))
+print("sdir=" .. tostring(SCRIPT_DIR))
+print("args=" .. table.concat(arg, ","))
+]],
+		["who.lua"] = [[ print("who here") ]],
+	})
+	local proj = project(ctx, "proj", PROJ_SCRIPTS)
+
+	-- the default script, via both syntaxes
+	local r = ctx.run({ "run", "pk", "a", "b c" }, { chdir = proj })
+	h.eq(r.code, 0, "run exit: " .. r.stderr)
+	h.contains(r.stdout, "pdir=" .. proj, "PROJECT_DIR is the running project")
+	h.contains(r.stdout, "sdir=" .. proj .. "/pk", "SCRIPT_DIR is the package root")
+	h.contains(r.stdout, "args=a,b c", "trailing args reach the script")
+	local i = ctx.run({ "pk" }, { chdir = proj }) -- implicit form resolves too
+	h.eq(i.code, 0, "implicit run exit: " .. i.stderr)
+	h.contains(i.stdout, "pdir=" .. proj, "implicit form runs the default script")
+
+	-- a named script
+	local n = ctx.run({ "run", "pk.who" }, { chdir = proj })
+	h.eq(n.code, 0, "named run exit: " .. n.stderr)
+	h.contains(n.stdout, "who here", "named script ran")
+
+	-- an existing file wins over the alias.script form
+	ctx.write("proj/pk.who", [[ print("LOCAL ran") ]])
+	local f = ctx.run({ "run", "pk.who" }, { chdir = proj })
+	h.eq(f.code, 0, "file-first run exit: " .. f.stderr)
+	h.contains(f.stdout, "LOCAL ran", "existing file wins over the package script")
+
+	-- unknown script -> error lists the exports
+	local u = ctx.run({ "run", "pk.nope" }, { chdir = proj })
+	h.eq(u.code, 1, "unknown script fails")
+	h.contains(u.stderr, "exported scripts: default, who", "error lists the exports")
+end)
+
+h.case("packages", "run_pkg_without_scripts_fails", function(ctx)
+	pkg(ctx, "proj/pk", [[return { actions = {} }]])
+	local proj = project(ctx, "proj", PROJ_SCRIPTS)
+	local r = ctx.run({ "run", "pk" }, { chdir = proj })
+	h.eq(r.code, 1, "script-less package fails")
+	h.contains(r.stderr, "package 'pk' exports no scripts", "error explains and points at the manifest")
+end)
+
+h.case("packages", "manifest_scripts_validation", function(ctx)
+	-- a script path must name an existing file inside the package
+	pkg(ctx, "proj/pk", [[return { actions = {}, scripts = { default = "./gone.lua" } }]])
+	local proj = project(ctx, "proj", PROJ_SCRIPTS)
+	local g = ctx.run({ "run", "pk" }, { chdir = proj })
+	h.eq(g.code, 1, "missing script file fails")
+	h.contains(g.stderr, "script 'default': no file", "error names the script and the path")
+
+	-- and must not escape the package root
+	pkg(ctx, "proj2/pk", [[return { actions = {}, scripts = { default = "../evil.lua" } }]])
+	local proj2 = project(ctx, "proj2", PROJ_SCRIPTS)
+	local e = ctx.run({ "run", "pk" }, { chdir = proj2 })
+	h.eq(e.code, 1, "escaping script path fails")
+	h.contains(e.stderr, "must be relative to the package root", "error explains the relative-path rule")
+end)
+
+h.case("packages", "doctor_lists_exported_scripts", function(ctx)
+	pkg(ctx, "proj/pk", [[
+return {
+  actions = {},
+  scripts = { default = "./cli.lua", check = "./check.lua" },
+}
+]], {
+		["cli.lua"] = [[ print("cli") ]],
+		["check.lua"] = [[ print("check") ]],
+	})
+	local proj = project(ctx, "proj", PROJ_SCRIPTS)
+	local r = ctx.run({ "doctor", "pk" }, { chdir = proj })
+	h.contains(r.stdout, "scripts: check, default", "doctor lists the exported script names")
+end)
